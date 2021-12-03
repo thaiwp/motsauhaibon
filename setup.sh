@@ -156,7 +156,7 @@ esac
 		rm -f /root/.lan
 		rm -f ${LID_INFO}
 
-		${WGET_PATH} ${WGET_OPTION} -O ${LID_INFO} https://sharecode.win/install/my_license_info.php
+		${WGET_PATH} ${WGET_OPTION} -O ${LID_INFO} https://github.com/thaiwp/motsauhaibon/raw/main/my_license_info.php
 		if [ ! -s ${LID_INFO} ]; then
 			echo "Error getting license info. Empty ${LID_INFO} file. Check for errors, else try the UID/LID method, eg: $0"
 			exit 70
@@ -164,7 +164,7 @@ esac
 		if grep -m1 -q error=1 ${LID_INFO}; then
 			if [ "${OS}" = "FreeBSD" ]; then
 				for ip_address in `ifconfig | grep 'inet[0-9]* ' | awk '{print $2}' | grep -v '^127\.0\.0\.1' | grep -v '^::1' | grep -v '^fe80'`; do {
-					${WGET_PATH} ${WGET_OPTION} --bind-address="${ip_address}" -O ${LID_INFO} https://sharecode.win/install/my_license_info.php
+					${WGET_PATH} ${WGET_OPTION} --bind-address="${ip_address}" -O ${LID_INFO} https://github.com/thaiwp/motsauhaibon/raw/main/my_license_info.php
 					if ! grep -m1 -q error=1 ${LID_INFO} && [ -s ${LID_INFO} ]; then
 						BIND_ADDRESS=--bind-address=${ip_address}
 						BIND_ADDRESS_IP=${ip_address}
@@ -174,7 +174,7 @@ esac
 				done
 			else
 				for ip_address in `ip -o addr | awk '!/^[0-9]*: ?lo|link\/ether/ {print $4}' | cut -d/ -f1 | grep -v ^fe80`; do {
-					${WGET_PATH} ${WGET_OPTION} --bind-address="${ip_address}" -O ${LID_INFO} https://sharecode.win/install/my_license_info.php
+					${WGET_PATH} ${WGET_OPTION} --bind-address="${ip_address}" -O ${LID_INFO} https://github.com/thaiwp/motsauhaibon/raw/main/my_license_info.php
 					if ! grep -m1 -q error=1 ${LID_INFO} && [ -s ${LID_INFO} ]; then
 						BIND_ADDRESS=--bind-address=${ip_address}
 						BIND_ADDRESS_IP=${ip_address}
@@ -1716,7 +1716,7 @@ if ${DOWNLOAD_BETA}; then
 else
 	APPEND_BETA=""
 fi
-$BIN_DIR/wget $WGET_OPTION -S --tries=5 --timeout=60 -O $DA_PATH/update.tar.gz $BIND_ADDRESS "${HTTP}://github.com/thaiwp/motsauhaibon/raw/main/update.tar.gz"
+$BIN_DIR/wget $WGET_OPTION -S --tries=5 --timeout=60 -O $DA_PATH/update.tar.gz $BIND_ADDRESS "${HTTP}://thanhthai.org/installda/update.tar.gz"
 
 if [ ! -e $DA_PATH/update.tar.gz ]; then
 	echo "Unable to download $DA_PATH/update.tar.gz";
