@@ -21,13 +21,6 @@ if [ "$(id -u)" != "0" ]; then
 	exit 1
 fi
 
-#If we have no sysbk directory (it's first entry in doAll()), we know that CB has never ran, thus it's a new install, we also have no versions.txt at the same time
-if [ ! -d /usr/local/sysbk ]; then
-	NEW_INSTALL=true
-else
-	NEW_INSTALL=false
-fi
-
 doHook(){
 	if [ ! -z "${1}" ] && [ ! -z "${2}" ]; then
 		if [ -d ${WORKDIR}/custom/hooks/${1}/${2} ]; then
@@ -218,7 +211,7 @@ if [ -z "${HOSTNAME}" ]; then
 fi
 
 #There are used in other sections, so must be executed everytime
-PHP1_RELEASE_SET="5.3 5.4 5.5 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1"
+PHP1_RELEASE_SET="5.3 5.4 5.5 5.6 7.0 7.1 7.2 7.3 7.4 8.0"
 PHP1_SHORTRELEASE_SET="`echo ${PHP1_RELEASE_SET} | tr -d '.'`"
 DEBIAN_VERSION=/etc/debian_version
 if [ "${OS}" = "FreeBSD" ]; then
@@ -291,7 +284,7 @@ if [ "${USE_ALL_SETTINGS}" = "1" ]; then
 	#SECTIONS OF OPTIONS
 	ALL_SECTIONS="PHP_SETTINGS MYSQL_SETTINGS WEBSERVER_SETTINGS WEBAPPS_SETTINGS CLAMAV_SETTINGS MAIL_SETTINGS FTP_SETTINGS STATS_SETTINGS PHP_EXT_SETTINGS CUSTOMBUILD_SETTINGS CRON_SETTINGS CLOUDLINUX_SETTINGS ADVANCED_SETTINGS"
 
-	PHP_EXT_SETTINGS="BZ2 GMP IONCUBE IMAP OPCACHE HTSCANNER IGBINARY IMAGICK LDAP PHALCON REDIS SNUFFLEUPAGUS SUHOSIN XMLRPC ZEND"
+	PHP_EXT_SETTINGS="BZ2 GMP IONCUBE IMAP OPCACHE HTSCANNER IMAGICK LDAP PHALCON REDIS SNUFFLEUPAGUS SUHOSIN XMLRPC ZEND"
 	PHP_SETTINGS="PHP1_RELEASE PHP1_MODE PHP2_RELEASE PHP2_MODE PHP3_RELEASE PHP3_MODE PHP4_RELEASE PHP4_MODE SECURE_PHP PHP_INI PHP_TIMEZONE PHP_INI_TYPE X_MAIL_HEADER"
 	MYSQL_SETTINGS="MYSQL MARIADB MYSQL_INST MYSQL_BACKUP MYSQL_BACKUP_GZIP MYSQL_BACKUP_DIR MYSQL_FORCE_COMPILE"
 	WEBSERVER_SETTINGS="UNIT WEBSERVER HTTP_METHODS LITESPEED_SERIALNO MODSECURITY MODSECURITY_RULESET APACHE_VER APACHE_MPM MOD_RUID2 USERDIR_ACCESS HARDEN_SYMLINKS_PATCH USE_HOSTNAME_FOR_ALIAS REDIRECT_HOST REDIRECT_HOST_HTTPS"
@@ -303,7 +296,7 @@ if [ "${USE_ALL_SETTINGS}" = "1" ]; then
 	CUSTOMBUILD_SETTINGS="CUSTOMBUILD CUSTOMBUILD_PLUGIN AUTOVER BOLD CLEAN CLEANAPACHE CLEAN_OLD_TARBALLS CLEAN_OLD_WEBAPPS DOWNLOADSERVER UNOFFICIAL_MIRRORS"
 	CRON_SETTINGS="CRON CRON_FREQUENCY EMAIL NOTIFICATIONS DA_AUTOUPDATE UPDATES WEBAPPS_UPDATES"
 	CLOUDLINUX_SETTINGS="CLOUDLINUX CLOUDLINUX_BETA CAGEFS"
-	ADVANCED_SETTINGS="CSF CURL SSL_CONFIGURATION REDIS"
+	ADVANCED_SETTINGS="CURL SSL_CONFIGURATION REDIS"
 
 	PHP_EXT_SETTINGS_DESC="PHP Extension Settings"
 	PHP_SETTINGS_DESC="PHP Settings"
@@ -424,11 +417,7 @@ if [ "${USE_ALL_SETTINGS}" = "1" ]; then
 
 	PHP_SNUFFLEUPAGUS_SET="${YESNO_SET}"
 	PHP_SNUFFLEUPAGUS_DEF="no"
-	PHP_SNUFFLEUPAGUS_DESC="Snuffleupagus security module."
-
-	PHP_IGBINARY_SET="${YESNO_SET}"
-	PHP_IGBINARY_DEF="no"
-	PHP_IGBINARY_DESC="Drop in replacement for the standard php serializer."
+	PHP_SNUFFLEUPAGUS_DESC="Snuffleupagus security module for php7."
 
 	PHP_SUHOSIN_SET="${YESNO_SET}"
 	PHP_SUHOSIN_DEF="no"
@@ -497,7 +486,7 @@ if [ "${USE_ALL_SETTINGS}" = "1" ]; then
 	APACHE_MPM_DESC="Apache Multi-Processing Module. 'auto' mode sets MPM to be Prefork if PHP as mod_php is chosen, because this way PHP is not thread-safe. Otherwise Event MPM is set."
 	
 	USERDIR_ACCESS_SET="${YESNO_SET}"
-	USERDIR_ACCESS_DEF="no"
+	USERDIR_ACCESS_DEF="yes"
 	USERDIR_ACCESS_DESC="Allows accessing contents of public_html using https://hostname/~user, if enabled."
 
 	MOD_RUID2_SET="${YESNO_SET}"
@@ -749,10 +738,6 @@ if [ "${USE_ALL_SETTINGS}" = "1" ]; then
 	WEBAPPS_UPDATES_DEF="no"
 	WEBAPPS_UPDATES_DESC="Enables automatic updates of all WEB applications enabled. Takes effect only when 'cron' option is enabled."
 
-	CSF_SET="${YESNO_SET}"
-	CSF_DEF="no"
-	CSF_DESC="Enables ConfigServer Security & Firewall (csf)."
-
 	CLOUDLINUX_SET="${YESNO_SET}"
 	if uname -a | grep -m1 -q '\.lve' || uname -a | grep -m1 -q 'el7h'; then
 		CLOUDLINUX_DEF="yes"
@@ -776,7 +761,7 @@ fi
 #################################################
 
 showVersion() {
-	echo "${BUILDSCRIPT_VER} (rev: 2843)"
+	echo "${BUILDSCRIPT_VER} (rev: 2744)"
 }
 
 if [ ! -d ${WORKDIR}/patches ]; then
@@ -984,7 +969,8 @@ else
 	SQL_PATH_IS_EMPTY=true
 fi
 
-CURL_CONNECT_OPTIONS="-L --progress-bar --connect-timeout 5 --retry 3"
+WGET_CONNECT_OPTIONS="--connect-timeout=5 --read-timeout=10 --tries=3"
+WGET_HTTPS_OPTIONS="--no-check-certificate"
 
 MARIADB_DEF="10.4"
 MYSQL_DEF="5.7"
@@ -1349,10 +1335,6 @@ do_exit() {
 		echo "$2"
 	fi
 	removeLockfile
-	if ${NEW_INSTALL}; then
-		echo "action=notify&value=admin&subject=CustomBuild installation has failed&message=CustomBuild installation has failed, please check the following file for more information:%0A/usr/local/directadmin/custombuild/install.txt" >> ${TASK_QUEUE}
-		run_dataskq
-	fi
 	exit $1
 }
 
@@ -1408,6 +1390,32 @@ getOpt() {
 	fi
 
 	echo ${GET_OPTION}
+}
+
+#eg, CentOS 6.7 returns 6
+da_os_major_version() {
+	/usr/local/directadmin/directadmin o | grep 'Compiled on' | head -n1 | cut -d. -f1 | awk '{print $4}'
+}
+
+os_license_mismatch() {
+	DA_OS_NAME=`/usr/local/directadmin/directadmin o | grep 'Compiled on' | head -n1 | awk '{print $3}' | cut -d\' -f2`
+	DA_MAJOR_OS_VER=`da_os_major_version`
+	if [ "${OS}" = "FreeBSD" ]; then
+		if [ "${DA_OS_NAME}" != "FreeBSD" ]; then
+			echo "${boldon}Your license OS (${DA_OS_NAME}) does not match the OS installed (FreeBSD).${boldoff}"
+		fi
+	elif [ -e ${DEBIAN_VERSION} ] && [ "${DA_OS_NAME}" != "Linux" ]; then
+		if [ "${OS_DEBIAN_VER}" != "${DA_MAJOR_OS_VER}" ] || [ "${DA_OS_NAME}" != "Debian" ]; then
+			# Hiding the warning on ubuntu
+			if ! gcc --version | grep -m1 -q 'ubuntu'; then
+				echo "${boldon}Your license OS (${DA_OS_NAME} ${DA_MAJOR_OS_VER}) does not match the OS installed (Debian ${OS_DEBIAN_VER}).${boldoff}"
+			fi
+		fi
+	elif [ "${DA_OS_NAME}" != "Linux" ]; then
+		if [ "${OS_CENTOS_VER}" != "${DA_MAJOR_OS_VER}" ] || [ "${DA_OS_NAME}" != "CentOS" ]; then
+			echo "${boldon}Your license OS (${DA_OS_NAME} ${DA_MAJOR_OS_VER}) does not match the OS installed (CentOS ${OS_CENTOS_VER}).${boldoff}"
+		fi
+	fi
 }
 
 have_php_system() {
@@ -1507,20 +1515,13 @@ secure_php() {
 #set_service name ON|OFF|delete
 set_service() {
 	if [ ! -e ${SERVICES} ]; then
-		if [ ! -d /usr/local/directadmin/data/admin ]; then
-			mkdir -p /usr/local/directadmin/data/admin
-			chown diradmin:diradmin /usr/local/directadmin/data/admin
-			chown diradmin:diradmin /usr/local/directadmin/data
-			chmod 700 /usr/local/directadmin/data/admin
-			chmod 711 /usr/local/directadmin/data
-		fi
-		touch ${SERVICES}
-		chown diradmin:diradmin ${SERVICES}
-		chmod 600 ${SERVICES}
+		return
 	fi
 
+	SERVICE_COUNT=`grep -m1 -c "^$1=" ${SERVICES}`
+
 	if [ "$2" = "delete" ]; then
-		if ! grep -q "^$1=" ${SERVICES}; then
+		if [ "${SERVICE_COUNT}" -eq 0 ]; then
 			return
 		else
 			perl -pi -e "s/^${1}=.*\n//" ${SERVICES}
@@ -1529,7 +1530,7 @@ set_service() {
 	fi
 
 	if [ "$2" = "ON" ] || [ "$2" = "OFF" ]; then
-		if ! grep -q "^$1=" ${SERVICES}; then
+		if [ "${SERVICE_COUNT}" -eq 0 ]; then
 			echo "$1=$2" >> ${SERVICES}
 		else
 			perl -pi -e "s/^$1=.*/$1=$2/" ${SERVICES}
@@ -1848,7 +1849,6 @@ case "$1" in
 	show_file) getopt_case_toggle ;;
 esac
 if [ "${GETOPT_CASE}" = "1" ]; then
-	CSF_OPT=`getOpt csf ${CSF_DEF}`
 	#CloudLinux
 	CLOUDLINUX_OPT=`getOpt cloudlinux ${CLOUDLINUX_DEF}`
 	CLOUDLINUX_BETA_OPT=`getOpt cloudlinux_beta ${CLOUDLINUX_BETA_DEF}`
@@ -1918,7 +1918,6 @@ if [ "${GETOPT_CASE}" = "1" ]; then
 	PHP_BZ2_OPT=`getPhpOpt bz2 ${PHP_BZ2_DEF}`
 	PHP_GMP_OPT=`getPhpOpt gmp ${PHP_GMP_DEF}`
 	PHP_HTSCANNER_OPT=`getPhpOpt htscanner ${PHP_HTSCANNER_DEF}`
-	PHP_IGBINARY_OPT=`getPhpOpt igbinary ${PHP_IGBINARY_DEF}`
 	PHP_IMAGICK_OPT=`getPhpOpt imagick ${PHP_IMAGICK_DEF}`
 	PHP_IMAP_OPT=`getPhpOpt imap ${PHP_IMAP_DEF}`
 	PHP_IONCUBE_OPT=`getPhpOpt ioncube ${PHP_IONCUBE_DEF}`
@@ -2127,26 +2126,26 @@ if [ "${GETOPT_CASE}" = "1" ]; then
 	fi
 	if [ "${WEBSERVER_OPT}" = "litespeed" ]; then
 		if [ ! -s ${VERSIONS_FILE_LITESPEED} ]; then
-			curl ${CURL_CONNECT_OPTIONS} ${WEBPATH_LITESPEED}/versions.txt -o ${VERSIONS_FILE_LITESPEED} 2> /dev/null
+			wget ${WGET_CONNECT_OPTIONS} ${WEBPATH_LITESPEED}/versions.txt -O ${VERSIONS_FILE_LITESPEED} 2> /dev/null
 		fi
 		if [ ! -s ${VERSIONS_FILE_LITESPEED} ]; then
-			curl ${CURL_CONNECT_OPTIONS} ${WEBPATH_LITESPEED}/versions.txt -o ${VERSIONS_FILE_LITESPEED} 2> /dev/null
+			wget ${WGET_CONNECT_OPTIONS} ${WEBPATH_LITESPEED}/versions.txt -O ${VERSIONS_FILE_LITESPEED} 2> /dev/null
 		fi
 	fi
 	if [ "${CLOUDLINUX_OPT}" = "yes" ]; then
 		if [ ! -s ${VERSIONS_FILE_CL} ]; then
-			curl ${CURL_CONNECT_OPTIONS} ${WEBPATH_CL}/${VERSIONS_CL} -o ${VERSIONS_FILE_CL} 2> /dev/null
+			wget ${WGET_CONNECT_OPTIONS} ${WEBPATH_CL}/${VERSIONS_CL} -O ${VERSIONS_FILE_CL} 2> /dev/null
 		fi
 		if [ ! -s ${VERSIONS_FILE_CL} ]; then
-			curl ${CURL_CONNECT_OPTIONS} ${WEBPATH_CL}/${VERSIONS_CL} -o ${VERSIONS_FILE_CL} 2> /dev/null
+			wget ${WGET_CONNECT_OPTIONS} ${WEBPATH_CL}/${VERSIONS_CL} -O ${VERSIONS_FILE_CL} 2> /dev/null
 		fi
 	fi
 	if [ "${MODSECURITY_OPT}" = "yes" ] && [ "${MODSECURITY_RULESET_OPT}" = "comodo" ]; then
 		if [ ! -s ${VERSIONS_FILE_CWAF} ]; then
-			curl ${CURL_CONNECT_OPTIONS} ${WEBPATH_CWAF}/doc/comodo_versions.txt -o ${VERSIONS_FILE_CWAF} 2> /dev/null
+			wget ${WGET_CONNECT_OPTIONS} ${WGET_HTTPS_OPTIONS} ${WEBPATH_CWAF}/doc/comodo_versions.txt -O ${VERSIONS_FILE_CWAF} 2> /dev/null
 		fi
 		if [ ! -s ${VERSIONS_FILE_CWAF} ]; then
-			curl ${CURL_CONNECT_OPTIONS} ${WEBPATH_CWAF}/doc/comodo_versions.txt -o ${VERSIONS_FILE_CWAF} 2> /dev/null
+			wget ${WGET_CONNECT_OPTIONS} ${WGET_HTTPS_OPTIONS} ${WEBPATH_CWAF}/doc/comodo_versions.txt -O ${VERSIONS_FILE_CWAF} 2> /dev/null
 		fi
 	fi
 	if [ "${MYSQL_INST_OPT}" = "mariadb" ]; then
@@ -2155,10 +2154,10 @@ if [ "${GETOPT_CASE}" = "1" ]; then
 				mkdir -p mysql
 			fi
 			if [ ! -s ${VERSIONS_FILE_JEMALLOC} ]; then
-				curl ${CURL_CONNECT_OPTIONS} ${WEBPATH}/all/mariadb/jemalloc/jemalloc_versions.txt -o ${VERSIONS_FILE_JEMALLOC} 2> /dev/null
+				wget ${WGET_CONNECT_OPTIONS} ${WEBPATH}/all/mariadb/jemalloc/jemalloc_versions.txt -O ${VERSIONS_FILE_JEMALLOC} 2> /dev/null
 			fi
 			if [ ! -s ${VERSIONS_FILE_GALERA} ]; then
-				curl ${CURL_CONNECT_OPTIONS} ${WEBPATH}/all/mariadb/galera/galera_versions.txt -o ${VERSIONS_FILE_GALERA} 2> /dev/null
+				wget ${WGET_CONNECT_OPTIONS} ${WEBPATH}/all/mariadb/galera/galera_versions.txt -O ${VERSIONS_FILE_GALERA} 2> /dev/null
 			fi
 		fi
 	fi
@@ -2291,17 +2290,8 @@ doRestartDA() {
 	run_dataskq
 }
 
-doDAVersionCheck()  {
-	DIRECTADMINV=`/usr/local/directadmin/directadmin v | awk '{print $3}' | cut -d. -f2,3`
-	if [ "`version_cmp ${DIRECTADMINV} 1.63 'DA version check'`" -lt 0 ]; then
-			do_exit 1 "${boldon}Your DirectAdmin version (${DIRECTADMINV}) is older than minimal required for this version of CustomBuild (1.63). Please run '/usr/local/directadmin/custombuild/build update_da'${boldoff}"
-	fi
-}
-
 doChecks() {
-	if [ -x ${DA_BIN} ] && [ -s ${DACONF_FILE} ]; then
-		doDAVersionCheck
-	fi
+	os_license_mismatch
 
 	doCSFpignore
 
@@ -2313,7 +2303,7 @@ doChecks() {
 
 	DA_VERSION_IS_INSECURE=false
 	if [ ! -s /etc/mime.types ]; then
-		curl ${CURL_CONNECT_OPTIONS} ${WEBPATH}/mime.types -o /etc/mime.types
+		wget ${WGET_CONNECT_OPTIONS} ${WEBPATH}/mime.types -O /etc/mime.types
 	fi
 	# Do some pre-definitions, so that we wouldn't output security in json if there are no security items
 	if [ -x ${DA_BIN} ] && [ -s ${DACONF_FILE} ]; then
@@ -2677,7 +2667,7 @@ getFile() {
 		if [ ${OS} = "FreeBSD" ]; then
 			fetch -o ${CWD}/${LOCAL_NAME} ${WEBPATH}/${1}
 		else
-			curl ${CURL_CONNECT_OPTIONS} -o ${CWD}/${LOCAL_NAME} ${WEBPATH}/${1}
+			wget ${WGET_CONNECT_OPTIONS} -O ${CWD}/${LOCAL_NAME} ${WEBPATH}/${1}
 		fi
 
 		if [ ! -s ${LOCAL_NAME} ]; then
@@ -2687,7 +2677,7 @@ getFile() {
 			if [ ${OS} = "FreeBSD" ]; then
 				fetch -o ${CWD}/${LOCAL_NAME} ${WEBPATH_BACKUP}/${1}
 			else
-				curl ${CURL_CONNECT_OPTIONS} -o ${CWD}/${LOCAL_NAME} ${WEBPATH_BACKUP}/${1}
+				wget ${WGET_CONNECT_OPTIONS} -O ${CWD}/${LOCAL_NAME} ${WEBPATH_BACKUP}/${1}
 			fi
 
 			if [ "${GET_FILE_FAILED_COUNT}" -eq ${GIVE_UP_THRESH} ]; then
@@ -2750,7 +2740,7 @@ getFile() {
 		if [ ${OS} = "FreeBSD" ]; then
 			fetch -o ${CWD}/${LOCAL_NAME} ${WEBPATH}/${1}
 		else
-			curl ${CURL_CONNECT_OPTIONS} -o ${CWD}/${LOCAL_NAME} ${WEBPATH}/${1}
+			wget ${WGET_CONNECT_OPTIONS} -O ${CWD}/${LOCAL_NAME} ${WEBPATH}/${1}
 		fi
 	fi
 
@@ -2790,7 +2780,7 @@ downloadVersionsTxt() {
 	if [ ${OS} = "FreeBSD" ]; then
 		fetch -o ./versions.txt ${WEBPATH}/versions.txt 2> /dev/null
 	else
-		curl ${CURL_CONNECT_OPTIONS} -o ./versions.txt ${WEBPATH}/versions.txt 2> /dev/null
+		wget ${WGET_CONNECT_OPTIONS} -O ./versions.txt ${WEBPATH}/versions.txt 2> /dev/null
 	fi
 
 	if [ ! -s ./versions.txt ]; then
@@ -2798,7 +2788,7 @@ downloadVersionsTxt() {
 		if [ ${OS} = "FreeBSD" ]; then
 			fetch -o ./versions.txt ${WEBPATH_BACKUP}/versions.txt 2> /dev/null
 		else
-			curl ${CURL_CONNECT_OPTIONS} -o ./versions.txt ${WEBPATH_BACKUP}/versions.txt 2> /dev/null
+			wget ${WGET_CONNECT_OPTIONS} -O ./versions.txt ${WEBPATH_BACKUP}/versions.txt 2> /dev/null
 		fi
 
 		if [ -s ./versions.txt ]; then
@@ -2823,19 +2813,19 @@ downloadVersionsTxt() {
 	getFile patches_versions.txt patches_versions
 
 	if [ "${WEBSERVER_OPT}" = "litespeed" ]; then
-		curl ${CURL_CONNECT_OPTIONS} ${WEBPATH_LITESPEED}/versions.txt -o ${VERSIONS_FILE_LITESPEED} 2> /dev/null
+		wget ${WGET_CONNECT_OPTIONS} ${WEBPATH_LITESPEED}/versions.txt -O ${VERSIONS_FILE_LITESPEED} 2> /dev/null
 		if [ ! -s ${VERSIONS_FILE_LITESPEED} ]; then
 			getFile versions_litespeed.txt versions_litespeed
 		fi
 	fi
 	if [ "${CLOUDLINUX_OPT}" = "yes" ]; then
-		curl ${CURL_CONNECT_OPTIONS} ${WEBPATH_CL}/${VERSIONS_CL} -o ${VERSIONS_FILE_CL} 2> /dev/null
+		wget ${WGET_CONNECT_OPTIONS} ${WEBPATH_CL}/${VERSIONS_CL} -O ${VERSIONS_FILE_CL} 2> /dev/null
 		if [ ! -s ${VERSIONS_FILE_CL} ]; then
 			getFile versions_cl.txt versions_cl
 		fi
 	fi
 	if [ "${MODSECURITY_OPT}" = "yes" ] && [ "${MODSECURITY_RULESET_OPT}" = "comodo" ]; then
-		curl ${CURL_CONNECT_OPTIONS} ${WEBPATH_CWAF}/doc/comodo_versions.txt -o ${VERSIONS_FILE_CWAF} 2> /dev/null
+		wget ${WGET_CONNECT_OPTIONS} ${WGET_HTTPS_OPTIONS} ${WEBPATH_CWAF}/doc/comodo_versions.txt -O ${VERSIONS_FILE_CWAF} 2> /dev/null
 		if [ ! -s ${VERSIONS_FILE_CWAF} ]; then
 			getFile versions_cwaf.txt versions_cwaf
 		fi
@@ -3091,7 +3081,7 @@ getFileCL() {
 
 	if [ ! -s ${1} ]; then
 		printf "Downloading\t\t$1...\n"
-		curl ${CURL_CONNECT_OPTIONS} -o ${CWD}/${1} ${WEBPATH_CL}/${1}
+		wget ${WGET_CONNECT_OPTIONS} -O ${CWD}/${1} ${WEBPATH_CL}/${1}
 		tar xzf ${1} --no-same-owner
 	fi
 
@@ -3128,7 +3118,7 @@ getFileCWAF() {
 
 	if [ ! -s ${1} ]; then
 		printf "Downloading\t\t$1...\n"
-		curl ${CURL_CONNECT_OPTIONS} -o ${CWD}/${1} "${WEBPATH_CWAF}/api/da_vendor?file=${1}"
+		wget ${WGET_CONNECT_OPTIONS} ${WGET_HTTPS_OPTIONS} -O ${CWD}/${1} "${WEBPATH_CWAF}/api/da_vendor?file=${1}"
 	fi
 
 	if [ "$#" -eq 2 ]; then
@@ -3163,7 +3153,7 @@ getFileLSWS() {
 
 	if [ ! -s ${1} ]; then
 		printf "Downloading\t\t$1...\n"
-		curl ${CURL_CONNECT_OPTIONS} -o ${CWD}/${1} ${WEBPATH_LITESPEED}/${LITESPEED_REPO}/${1}
+		wget ${WGET_CONNECT_OPTIONS} -O ${CWD}/${1} ${WEBPATH_LITESPEED}/${LITESPEED_REPO}/${1}
 	fi
 
 	if [ "$#" -eq 2 ]; then
@@ -3721,8 +3711,6 @@ if [ "${GET_SERVICE_VERSIONS}" = "1" ]; then
 		LIBSODIUM_VER=`getVer libsodium`
 		LIBZIP_VER=`getVer libzip`
 		COMPOSER_VER=`getVer composer`
-		WP_VER=`getVer wp-cli`
-		IMAPSYNC_VER=`getVer imapsync`
 		if [ "${OS}" = "FreeBSD" ]; then
 			LEGO_VER=`getVer lego_freebsd`
 		elif [ "${OS_CENTOS_VER}" = "6" ] && [ "${B64}" = "0" ]; then
@@ -3745,7 +3733,6 @@ if [ "${GET_SERVICE_VERSIONS}" = "1" ]; then
 		SUHOSIN_VER=`getVer suhosin`
 		OPCACHE_VER=`getVer zendopcache`
 
-		IGBINARY_VER=`getVer igbinary`
 		PSR_VER=`getVer psr`
 		PHALCON_VER=`getVer phalcon`
 		REDIS_VER=`getVer redis`
@@ -4469,7 +4456,6 @@ doclean_old_tarballs() {
 	clean_tarball nghttp2 ${NGHTTP2_VER} tar.gz
 	clean_tarball apr ${APR_VER} tar.gz
 	clean_tarball apr-util ${APR_UTIL_VER} tar.gz
-	clean_tarball imapsync ${IMAPSYNC_VER} tar.gz
 	if [ "${MODSECURITY_OPT}" = "yes" ]; then
 		if [ "${WEBSERVER_OPT}" = "apache" ]; then
 			clean_tarball ${MODSECURITY_FILENAME} ${MODSECURITY_VER} tar.gz
@@ -4509,10 +4495,6 @@ doclean_old_tarballs() {
 	clean_tarball libxslt ${LIBXSLT_VER} tar.gz
 	clean_tarball libxml2 ${LIBXML2_VER} tar.gz
 	clean_tarball libzip ${LIBZIP_VER} tar.gz
-
-	if [ "${PHP_IGBINARY_OPT}" = "yes" ]; then
-		clean_tarball igbinary ${IGBINARY_VER} tar.gz
-	fi
 
 	if [ "${IMAGICK_OPT}" = "yes" ]; then
 		clean_tarball imagick ${IMAGICK_VER} tgz
@@ -4600,7 +4582,7 @@ doclean_old_tarballs() {
 	fi
 
 	#PHP bit needs to be different
-	for i in `ls ${WORKDIR} | grep '^php-' | grep -v "${PHP53_VER}" | grep -v "${PHP54_VER}" | grep -v "${PHP55_VER}" | grep -v "${PHP56_VER}" | grep -v "${PHP70_VER}" | grep -v "${PHP71_VER}" | grep -v "${PHP72_VER}" | grep -v "${PHP73_VER}" | grep -v "${PHP74_VER}" | grep -v "${PHP80_VER}" | grep -v "${PHP81_VER}" | grep tar.gz`; do
+	for i in `ls ${WORKDIR} | grep '^php-' | grep -v "${PHP53_VER}" | grep -v "${PHP54_VER}" | grep -v "${PHP55_VER}" | grep -v "${PHP56_VER}" | grep -v "${PHP70_VER}" | grep -v "${PHP71_VER}" | grep -v "${PHP72_VER}" | grep -v "${PHP73_VER}" | grep -v "${PHP74_VER}" | grep -v "${PHP80_VER}" | grep tar.gz`; do
 		rm -f ${WORKDIR}/$i
 		if [ "${CLEAN_OPT}" = "no" ]; then
 			echo "Removing ${WORKDIR}/$i..."
@@ -4705,9 +4687,7 @@ doClean() {
 	rm -rf php-${PHP73_VER}
 	rm -rf php-${PHP74_VER}
 	rm -rf php-${PHP80_VER}
-	rm -rf php-${PHP81_VER}
 	rm -rf redis-${REDIS_VER}
-	rm -rf imapsync-imapsync-${IMAPSYNC_VER}
 	if [ "${UNIT_OPT}" = "yes" ]; then
 		rm -rf unit-${UNIT_VER}
 	fi
@@ -4891,11 +4871,11 @@ esac
 if [ "${BUILD_SECTIONS_CASE}" = "1" ]; then
 	HELP_SECTIONS="BUILD_COMP BUILD_PHP_EXT BUILD_COMP_CONF BUILD_COMP_WEBAPPS BUILD_CB BUILD_OLD BUILD_UPDATE BUILD_UPDATE_PCG BUILD_ALL BUILD_PHP_EXTENSIONS BUILD_EXPERIENCED"
 
-	BUILD_PHP_EXT_SET="php_gmp php_igbinary php_ioncube php_imagick php_imap php_ldap php_opcache php_phalcon php_psr php_redis php_readline php_snuffleupagus php_suhosin php_xmlrpc php_zend"
+	BUILD_PHP_EXT_SET="php_gmp php_ioncube php_imagick php_imap php_ldap php_opcache php_phalcon php_psr php_redis php_readline php_snuffleupagus php_suhosin php_xmlrpc php_zend"
 	BUILD_PHP_EXT_DESC="Install/update PHP extensions"
 	BUILD_PHP_EXT_REQADD=""
 
-	BUILD_COMP_SET="apache awstats awstats_process bubblewrap csf clamav composer curl cpanel_to_da dovecot exim freetype geoipupdate icu imagemagick imapsync jailshell lego libmaxminddb libmodsecurity libspf2 libsrs_alt libsodium libxml2 libxslt litespeed lua mod_lsapi mod_proctitle mod_aclr2 mod_ruid2 mod_htscanner2 mod_fcgid modsecurity modsecurity_rules msmtp mysql netdata nginx nginx_apache openlitespeed pigeonhole pigz pcre php proftpd pureftpd redis rspamd snail spamassassin suphp unit webalizer wp"
+	BUILD_COMP_SET="apache awstats awstats_process bubblewrap clamav composer curl cpanel_to_da dovecot exim freetype geoipupdate icu imagemagick jailshell lego libmaxminddb libmodsecurity libspf2 libsrs_alt libsodium libxml2 libxslt litespeed lua mod_lsapi mod_proctitle mod_aclr2 mod_ruid2 mod_htscanner2 mod_fcgid modsecurity modsecurity_rules msmtp mysql netdata nginx nginx_apache openlitespeed pigeonhole pigz pcre php proftpd pureftpd redis rspamd snail spamassassin suphp unit webalizer"
 	BUILD_COMP_DESC="Install/update server components"
 	BUILD_COMP_REQADD=""
 
@@ -4907,7 +4887,7 @@ if [ "${BUILD_SECTIONS_CASE}" = "1" ]; then
 	BUILD_COMP_WEBAPPS_DESC="Install/update web applications"
 	BUILD_COMP_WEBAPPS_REQADD=""
 
-	BUILD_CB_SET="create_options custombuild_plugin cron opt_help options_nobold list_removals remove_items set set_fastest set_fastest_quiet update_da update_versions update_webapps used_configs versions version"
+	BUILD_CB_SET="create_options custombuild_plugin cron opt_help options list_removals remove_items set set_fastest set_fastest_quiet update_da update_versions update_webapps used_configs versions version"
 	BUILD_CB_DESC="CustomBuild related options/functions"
 	BUILD_CB_SET_REQADD="opt_help set"
 	SET_ADDIT="option_name value"
@@ -4970,9 +4950,6 @@ initJSONVars() {
 	HELP_SECTIONS_JSON_SKIP="BUILD_EXPERIENCED"
 
 	BUILD_PHP_EXT_SKIP=""
-	if [ "${PHP_IGBINARY_OPT}" = "no" ]; then
-		BUILD_PHP_EXT_SKIP="${BUILD_PHP_EXT_SKIP}igbinary "
-	fi
 	if [ "${IMAGICK_OPT}" = "no" ]; then
 		BUILD_PHP_EXT_SKIP="${BUILD_PHP_EXT_SKIP}imagick "
 	fi
@@ -5017,9 +4994,6 @@ initJSONVars() {
 	fi
 	if [ "${WEBALIZER_OPT}" = "no" ]; then
 		BUILD_COMP_SKIP="${BUILD_COMP_SKIP}webalizer "
-	fi
-	if [ "${CSF_OPT}" = "no" ]; then
-		BUILD_COMP_SKIP="${BUILD_COMP_SKIP}csf "
 	fi
 	if [ "${FTPD_OPT}" = "pureftpd" ]; then
 		BUILD_COMP_SKIP="${BUILD_COMP_SKIP}proftpd "
@@ -5139,10 +5113,6 @@ initJSONVars() {
 	COMP_REDIS_DESC="Install/update redis."
 	COMP_REDIS_VER="Version ${REDIS_VER}."
 
-	COMP_CSF_NAME="Build CSF"
-	COMP_CSF_DESC="Install/update ConfigServer Security & Firewall (csf)."
-	COMP_CSF_VER=""
-
 	COMP_CLAMAV_NAME="Build ClamAV"
 	COMP_CLAMAV_DESC="Install/update ClamAV antivirus engine."
 	COMP_CLAMAV_VER="Version ${CLAMAV_VER}."
@@ -5150,14 +5120,6 @@ initJSONVars() {
 	COMP_COMPOSER_NAME="Build composer"
 	COMP_COMPOSER_DESC="Install/update composer."
 	COMP_COMPOSER_VER="Version ${COMPOSER_VER}."
-
-	COMP_WP_NAME="Build wp-cli"
-	COMP_WP_DESC="Install/update command-line interface for WordPress."
-	COMP_WP_VER="Version ${WP_VER}."
-
-	COMP_IMAPSYNC_NAME="Build imapsync"
-	COMP_IMAPSYNC_DESC="Install/update imapsync tool for mailbox synchronization."
-	COMP_IMAPSYNC_VER="Version ${IMAPSYNC_VER}."
 
 	COMP_LEGO_NAME="Build lego"
 	COMP_LEGO_DESC="Install/update lego Let's Encrypt client."
@@ -5194,10 +5156,6 @@ initJSONVars() {
 	COMP_PHP_BZ2_NAME="Build bz2"
 	COMP_PHP_BZ2_DESC="Install/update bz2 extension for PHP."
 	COMP_PHP_BZ2_VER=""
-
-	COMP_PHP_IGBINARY_NAME="Build igbinary"
-	COMP_PHP_IGBINARY_DESC="Install/update igbinary extension for PHP."
-	COMP_PHP_IGBINARY_VER="Version ${IGBINARY_VER}."
 
 	COMP_PHP_IMAGICK_NAME="Build imagick"
 	COMP_PHP_IMAGICK_DESC="Install/update ImageMagick extension for PHP."
@@ -5467,8 +5425,8 @@ initJSONVars() {
 	COMP_OPT_HELP_NAME="Options.conf help"
 	COMP_OPT_HELP_DESC="Generates available options that could be used in the options.conf file."
 
-	COMP_OPTIONS_NOBOLD_NAME="Display options.conf settings"
-	COMP_OPTIONS_NOBOLD_DESC="Shows current options set in the options.conf file"
+	COMP_OPTIONS_NAME="Display options.conf settings"
+	COMP_OPTIONS_DESC="Shows current options set in the options.conf file"
 
 	COMP_SET_NAME="Change options.conf setting"
 	COMP_SET_DESC="Changes value in the options.conf file"
@@ -5667,26 +5625,6 @@ get_webmail_link() {
 	fi
 
 	echo "${WL}"
-}
-
-doPasswdServerStatus() {
-	if [ -e /var/www/html/passwd-server-status ]; then
-		rm -f /var/www/html/passwd-server-status
-	fi
-	touch /var/www/passwd-server-status
-	chown apache:apache /var/www/passwd-server-status
-	chmod 640 /var/www/passwd-server-status
-	if command -v htpasswd > /dev/null; then
-		if grep -q da_admin /var/www/passwd-server-status; then
-			sed -i '/da_admin/d' /var/www/passwd-server-status
-		fi
-		RANDOM_HTPASSWD_USER=`random_pass`
-		RANDOM_HTPASSWD_PASS=`random_pass`
-		htpasswd -b -c /var/www/passwd-server-status "${RANDOM_HTPASSWD_USER}" "${RANDOM_HTPASSWD_PASS}" >/dev/null 2>&1
-		echo "#Authenticate using:" >> /etc/httpd/conf/extra/httpd-info.conf
-		echo "#Username: ${RANDOM_HTPASSWD_USER}" >> /etc/httpd/conf/extra/httpd-info.conf
-		echo "#Password: ${RANDOM_HTPASSWD_PASS}" >> /etc/httpd/conf/extra/httpd-info.conf
-	fi
 }
 
 ####################################################
@@ -6779,14 +6717,40 @@ customize_config() {
 		cat ${CUSTOMIZE_DOVECOT_WRITE} > ${CONF_FILE}
 		chmod 700 ${CONF_FILE}
 	fi
-	if [ `echo ${ARGUMENT} | grep -c '^php[0-9][0-9]$'` -eq 1 ]; then
-		CONF_PATH=${WORKDIR}/custom/php
-		CONF_FILE=${CONF_PATH}/configure.${ARGUMENT}
+	if [ `echo ${ARGUMENT} | grep -c '^ap2_php[0-9][0-9]$'` -eq 1 ] || [ `echo ${ARGUMENT} | grep -c '^suphp_php[0-9][0-9]$'` -eq 1 ]  || [ `echo ${ARGUMENT} | grep -c '^fastcgi_php[0-9][0-9]$'` -eq 1 ] || [ `echo ${ARGUMENT} | grep -c '^fpm_php[0-9][0-9]$'` -eq 1 ] ; then
+		EXTENSION=`echo ${ARGUMENT} | cut -d_ -f2`
+		COMPONENT=`echo ${ARGUMENT} | cut -d_ -f1`
+		CONF_PATH=${WORKDIR}/custom/${COMPONENT}
+		CONF_FILE=${CONF_PATH}/configure.${EXTENSION}
 		if [ ! -s ${CONF_FILE} ]; then
 			mkdir -p ${CONF_PATH}
 			touch ${CONF_FILE}
 		fi
-		cat ${PLUGIN_PATH}/php/configure.${ARGUMENT} > ${CONF_FILE}
+		cat ${PLUGIN_PATH}/${COMPONENT}/configure.${EXTENSION} > ${CONF_FILE}
+		chmod 700 ${CONF_FILE}
+	fi
+	if [ `echo ${ARGUMENT} | grep -c '^litespeed_php[0-9][0-9]$'` -eq 1 ] || [ `echo ${ARGUMENT} | grep -c '^litespeed_php[0-9][0-9]$'` -eq 1 ]  || [ `echo ${ARGUMENT} | grep -c '^litespeed_php[0-9][0-9]$'` -eq 1 ] || [ `echo ${ARGUMENT} | grep -c '^litespeed_php[0-9][0-9]$'` -eq 1 ] ; then
+		EXTENSION=`echo ${ARGUMENT} | cut -d_ -f2`
+		COMPONENT=`echo ${ARGUMENT} | cut -d_ -f1`
+		CONF_PATH=${WORKDIR}/custom/${COMPONENT}
+		CONF_FILE=${CONF_PATH}/configure.${EXTENSION}
+		if [ ! -s ${CONF_FILE} ]; then
+			mkdir -p ${CONF_PATH}
+			touch ${CONF_FILE}
+		fi
+		cat ${PLUGIN_PATH}/${COMPONENT}/configure.${EXTENSION} > ${CONF_FILE}
+		chmod 700 ${CONF_FILE}
+	fi
+	if [ "${ARGUMENT}" = "fastcgi_php53" ] || [ "${ARGUMENT}" = "fastcgi_php54" ] || [ "${ARGUMENT}" = "fastcgi_php55" ] || [ "${ARGUMENT}" = "fastcgi_php56" ] || [ "${ARGUMENT}" = "fastcgi_php70" ]; then
+		EXTENSION=`echo ${ARGUMENT} | cut -d_ -f2`
+		COMPONENT=`echo ${ARGUMENT} | cut -d_ -f1`
+		CONF_PATH=${WORKDIR}/custom/${COMPONENT}
+		CONF_FILE=${CONF_PATH}/configure.${EXTENSION}
+		if [ ! -s ${CONF_FILE} ]; then
+			mkdir -p ${CONF_PATH}
+			touch ${CONF_FILE}
+		fi
+		cat ${PLUGIN_PATH}/${COMPONENT}/configure.${EXTENSION} > ${CONF_FILE}
 		chmod 700 ${CONF_FILE}
 	fi
 }
@@ -6796,7 +6760,11 @@ initConfigsJSON() {
 	NUM_OF_SECTIONS=0
 	AVAIL_CONFIGS=" "
 	PLUGIN_PATH=/usr/local/directadmin/plugins/custombuild/configure
-	PHP_CONFIGURE_ENDING="_CONFIGURE"
+	MOD_PHP_CONFIGURE_ENDING="_CONFIGURE"
+	FPM_CONFIGURE_ENDING="_CONFIGURE_FPM"
+	FASTCGI_CONFIGURE_ENDING="_CONFIGURE_FCGI"
+	SUPHP_CONFIGURE_ENDING="_CONFIGURE_SUPHP"
+	LSPHP_CONFIGURE_ENDING="_CONFIGURE_LSPHP"
 
 	if [ "${WEBSERVER_OPT}" = "apache" ] || [ "${WEBSERVER_OPT}" = "nginx_apache" ]; then
 		AVAIL_CONFIGS="${AVAIL_CONFIGS}ap2 "
@@ -6859,42 +6827,127 @@ initConfigsJSON() {
 	CUSTOMIZE_LIBXSLT_DESC="LibXSLT configuration file"
 	CUSTOMIZE_LIBXSLT_READ="${WORKDIR}/${LIBXSLT_CONFIGURE}"
 
-	#PHP1
-	AVAIL_CONFIGS="${AVAIL_CONFIGS}php${PHP1_SHORTRELEASE} "
-	eval `echo "CUSTOMIZE_PHP${PHP1_SHORTRELEASE}_DESC=\"PHP ${PHP1_RELEASE_OPT} as ${PHP1_MODE_OPT} (default) configuration file\""`
-	READ_VAR="PHP${PHP1_SHORTRELEASE}${PHP_CONFIGURE_ENDING}"
-	eval `echo "CUSTOMIZE_PHP${PHP1_SHORTRELEASE}_READ=\"${WORKDIR}/$(eval_var ${READ_VAR})\""`
-	PLUGIN_WRITE=`echo $(eval_var ${READ_VAR}) | perl -0p -e 's|^custom/||' | perl -0p -e 's|^configure/||'`
-	eval `echo "CUSTOMIZE_PHP${PHP1_SHORTRELEASE}_WRITE=\"${PLUGIN_PATH}/${PLUGIN_WRITE}\""`
-	
-	#PHP2
+	if [ "${PHP1_MODE_OPT}" = "mod_php" ]; then
+		AVAIL_CONFIGS="${AVAIL_CONFIGS}ap2_php${PHP1_SHORTRELEASE} "
+		eval `echo "CUSTOMIZE_AP2_PHP${PHP1_SHORTRELEASE}_DESC=\"PHP ${PHP1_RELEASE_OPT} as ${PHP1_MODE_OPT} (default) configuration file\""`
+		READ_VAR="PHP${PHP1_SHORTRELEASE}${MOD_PHP_CONFIGURE_ENDING}"
+		eval `echo "CUSTOMIZE_AP2_PHP${PHP1_SHORTRELEASE}_READ=\"${WORKDIR}/$(eval_var ${READ_VAR})\""`
+		PLUGIN_WRITE=`echo $(eval_var ${READ_VAR}) | perl -0p -e 's|^custom/||' | perl -0p -e 's|^configure/||'`
+		eval `echo "CUSTOMIZE_AP2_PHP${PHP1_SHORTRELEASE}_WRITE=\"${PLUGIN_PATH}/${PLUGIN_WRITE}\""`
+	elif [ "${PHP1_MODE_OPT}" = "lsphp" ]; then
+		AVAIL_CONFIGS="${AVAIL_CONFIGS}litespeed_php${PHP1_SHORTRELEASE} "
+		eval `echo "CUSTOMIZE_LITESPEED_PHP${PHP1_SHORTRELEASE}_DESC=\"PHP ${PHP1_RELEASE_OPT} as ${PHP1_MODE_OPT} (default) configuration file\""`
+		READ_VAR="PHP${PHP1_SHORTRELEASE}${LSPHP_CONFIGURE_ENDING}"
+		eval `echo "CUSTOMIZE_LITESPEED_PHP${PHP1_SHORTRELEASE}_READ=\"${WORKDIR}/$(eval_var ${READ_VAR})\""`
+		PLUGIN_WRITE=`echo $(eval_var ${READ_VAR}) | perl -0p -e 's|^custom/||' | perl -0p -e 's|^configure/||'`
+		eval `echo "CUSTOMIZE_LITESPEED_PHP${PHP1_SHORTRELEASE}_WRITE=\"${PLUGIN_PATH}/${PLUGIN_WRITE}\""`
+	elif [ "${PHP1_MODE_OPT}" = "fastcgi" ] || [ "${PHP1_MODE_OPT}" = "suphp" ] || [ "${PHP1_MODE_OPT}" = "php-fpm" ]; then
+		MODE_OPT="${PHP1_MODE_OPT}"
+		if [ "${MODE_OPT}" = "php-fpm" ]; then
+			MODE_OPT="fpm"
+		fi
+		MODE_UPPERCASE=`echo ${MODE_OPT} | tr "[a-z]" "[A-Z]"`
+		READ_VAR="${MODE_UPPERCASE}_CONFIGURE_ENDING"
+		ENDING_VAR=$(eval_var ${READ_VAR})
+		AVAIL_CONFIGS="${AVAIL_CONFIGS}${MODE_OPT}_php${PHP1_SHORTRELEASE} "
+		eval `echo "CUSTOMIZE_${MODE_UPPERCASE}_PHP${PHP1_SHORTRELEASE}_DESC=\"PHP ${PHP1_RELEASE_OPT} as ${MODE_OPT} (default) configuration file\""`
+		READ_VAR="PHP${PHP1_SHORTRELEASE}${ENDING_VAR}"
+		eval `echo "CUSTOMIZE_${MODE_UPPERCASE}_PHP${PHP1_SHORTRELEASE}_READ=\"${WORKDIR}/$(eval_var ${READ_VAR})\""`
+		PLUGIN_WRITE=`echo $(eval_var ${READ_VAR}) | perl -0p -e 's|^custom/||' | perl -0p -e 's|^configure/||'`
+		eval `echo "CUSTOMIZE_${MODE_UPPERCASE}_PHP${PHP1_SHORTRELEASE}_WRITE=\"${PLUGIN_PATH}/${PLUGIN_WRITE}\""`
+	fi
 	if [ "${PHP2_RELEASE_OPT}" != "no" ]; then
-		AVAIL_CONFIGS="${AVAIL_CONFIGS}php${PHP2_SHORTRELEASE} "
-		eval `echo "CUSTOMIZE_PHP${PHP2_SHORTRELEASE}_DESC=\"PHP ${PHP2_RELEASE_OPT} as ${PHP2_MODE_OPT} (additional) configuration file\""`
-		READ_VAR="PHP${PHP2_SHORTRELEASE}${PHP_CONFIGURE_ENDING}"
-		eval `echo "CUSTOMIZE_PHP${PHP2_SHORTRELEASE}_READ=\"${WORKDIR}/$(eval_var ${READ_VAR})\""`
-		PLUGIN_WRITE=`echo $(eval_var ${READ_VAR}) | perl -0p -e 's|^custom/||' | perl -0p -e 's|^configure/||'`
-		eval `echo "CUSTOMIZE_PHP${PHP2_SHORTRELEASE}_WRITE=\"${PLUGIN_PATH}/${PLUGIN_WRITE}\""`
+		if [ "${PHP2_MODE_OPT}" = "mod_php" ]; then
+			AVAIL_CONFIGS="${AVAIL_CONFIGS}ap2_php${PHP2_SHORTRELEASE} "
+			eval `echo "CUSTOMIZE_AP2_PHP${PHP2_SHORTRELEASE}_DESC=\"PHP ${PHP2_RELEASE_OPT} as ${PHP2_MODE_OPT} (additional) configuration file\""`
+			READ_VAR="PHP${PHP2_SHORTRELEASE}${MOD_PHP_CONFIGURE_ENDING}"
+			eval `echo "CUSTOMIZE_AP2_PHP${PHP2_SHORTRELEASE}_READ=\"${WORKDIR}/$(eval_var ${READ_VAR})\""`
+			PLUGIN_WRITE=`echo $(eval_var ${READ_VAR}) | perl -0p -e 's|^custom/||' | perl -0p -e 's|^configure/||'`
+			eval `echo "CUSTOMIZE_AP2_PHP${PHP2_SHORTRELEASE}_WRITE=\"${PLUGIN_PATH}/${PLUGIN_WRITE}\""`
+		elif [ "${PHP2_MODE_OPT}" = "lsphp" ]; then
+			AVAIL_CONFIGS="${AVAIL_CONFIGS}litespeed_php${PHP2_SHORTRELEASE} "
+			eval `echo "CUSTOMIZE_LITESPEED_PHP${PHP2_SHORTRELEASE}_DESC=\"PHP ${PHP2_RELEASE_OPT} as ${PHP2_MODE_OPT} (additional) configuration file\""`
+			READ_VAR="PHP${PHP2_SHORTRELEASE}${LSPHP_CONFIGURE_ENDING}"
+			eval `echo "CUSTOMIZE_LITESPEED_PHP${PHP2_SHORTRELEASE}_READ=\"${WORKDIR}/$(eval_var ${READ_VAR})\""`
+			PLUGIN_WRITE=`echo $(eval_var ${READ_VAR}) | perl -0p -e 's|^custom/||' | perl -0p -e 's|^configure/||'`
+			eval `echo "CUSTOMIZE_LITESPEED_PHP${PHP2_SHORTRELEASE}_WRITE=\"${PLUGIN_PATH}/${PLUGIN_WRITE}\""`
+		elif [ "${PHP2_MODE_OPT}" = "fastcgi" ] || [ "${PHP2_MODE_OPT}" = "suphp" ] || [ "${PHP2_MODE_OPT}" = "php-fpm" ]; then
+			MODE_OPT="${PHP2_MODE_OPT}"
+			if [ "${MODE_OPT}" = "php-fpm" ]; then
+				MODE_OPT="fpm"
+			fi
+			MODE_UPPERCASE=`echo ${MODE_OPT} | tr "[a-z]" "[A-Z]"`
+			READ_VAR="${MODE_UPPERCASE}_CONFIGURE_ENDING"
+			ENDING_VAR=$(eval_var ${READ_VAR})
+			AVAIL_CONFIGS="${AVAIL_CONFIGS}${MODE_OPT}_php${PHP2_SHORTRELEASE} "
+			eval `echo "CUSTOMIZE_${MODE_UPPERCASE}_PHP${PHP2_SHORTRELEASE}_DESC=\"PHP ${PHP2_RELEASE_OPT} as ${MODE_OPT} (additional) configuration file\""`
+			READ_VAR="PHP${PHP2_SHORTRELEASE}${ENDING_VAR}"
+			eval `echo "CUSTOMIZE_${MODE_UPPERCASE}_PHP${PHP2_SHORTRELEASE}_READ=\"${WORKDIR}/$(eval_var ${READ_VAR})\""`
+			PLUGIN_WRITE=`echo $(eval_var ${READ_VAR}) | perl -0p -e 's|^custom/||' | perl -0p -e 's|^configure/||'`
+			eval `echo "CUSTOMIZE_${MODE_UPPERCASE}_PHP${PHP2_SHORTRELEASE}_WRITE=\"${PLUGIN_PATH}/${PLUGIN_WRITE}\""`
+		fi
 	fi
-
-	#PHP3
-	if [ "${PHP3_RELEASE_OPT}" != "no" ]; then
-		AVAIL_CONFIGS="${AVAIL_CONFIGS}php${PHP3_SHORTRELEASE} "
-		eval `echo "CUSTOMIZE_PHP${PHP3_SHORTRELEASE}_DESC=\"PHP ${PHP3_RELEASE_OPT} as ${PHP3_MODE_OPT} (additional) configuration file\""`
-		READ_VAR="PHP${PHP2_SHORTRELEASE}${PHP_CONFIGURE_ENDING}"
-		eval `echo "CUSTOMIZE_PHP${PHP3_SHORTRELEASE}_READ=\"${WORKDIR}/$(eval_var ${READ_VAR})\""`
-		PLUGIN_WRITE=`echo $(eval_var ${READ_VAR}) | perl -0p -e 's|^custom/||' | perl -0p -e 's|^configure/||'`
-		eval `echo "CUSTOMIZE_PHP${PHP3_SHORTRELEASE}_WRITE=\"${PLUGIN_PATH}/${PLUGIN_WRITE}\""`
+		if [ "${PHP3_RELEASE_OPT}" != "no" ]; then
+		if [ "${PHP3_MODE_OPT}" = "mod_php" ]; then
+			AVAIL_CONFIGS="${AVAIL_CONFIGS}ap2_php${PHP3_SHORTRELEASE} "
+			eval `echo "CUSTOMIZE_AP2_PHP${PHP3_SHORTRELEASE}_DESC=\"PHP ${PHP3_RELEASE_OPT} as ${PHP3_MODE_OPT} (additional) configuration file\""`
+			READ_VAR="PHP${PHP3_SHORTRELEASE}${MOD_PHP_CONFIGURE_ENDING}"
+			eval `echo "CUSTOMIZE_AP2_PHP${PHP3_SHORTRELEASE}_READ=\"${WORKDIR}/$(eval_var ${READ_VAR})\""`
+			PLUGIN_WRITE=`echo $(eval_var ${READ_VAR}) | perl -0p -e 's|^custom/||' | perl -0p -e 's|^configure/||'`
+			eval `echo "CUSTOMIZE_AP2_PHP${PHP3_SHORTRELEASE}_WRITE=\"${PLUGIN_PATH}/${PLUGIN_WRITE}\""`
+		elif [ "${PHP3_MODE_OPT}" = "lsphp" ]; then
+			AVAIL_CONFIGS="${AVAIL_CONFIGS}litespeed_php${PHP3_SHORTRELEASE} "
+			eval `echo "CUSTOMIZE_LITESPEED_PHP${PHP3_SHORTRELEASE}_DESC=\"PHP ${PHP3_RELEASE_OPT} as ${PHP3_MODE_OPT} (additional) configuration file\""`
+			READ_VAR="PHP${PHP3_SHORTRELEASE}${LSPHP_CONFIGURE_ENDING}"
+			eval `echo "CUSTOMIZE_LITESPEED_PHP${PHP3_SHORTRELEASE}_READ=\"${WORKDIR}/$(eval_var ${READ_VAR})\""`
+			PLUGIN_WRITE=`echo $(eval_var ${READ_VAR}) | perl -0p -e 's|^custom/||' | perl -0p -e 's|^configure/||'`
+			eval `echo "CUSTOMIZE_LITESPEED_PHP${PHP3_SHORTRELEASE}_WRITE=\"${PLUGIN_PATH}/${PLUGIN_WRITE}\""`
+		elif [ "${PHP3_MODE_OPT}" = "fastcgi" ] || [ "${PHP3_MODE_OPT}" = "suphp" ] || [ "${PHP3_MODE_OPT}" = "php-fpm" ]; then
+			MODE_OPT="${PHP3_MODE_OPT}"
+			if [ "${MODE_OPT}" = "php-fpm" ]; then
+				MODE_OPT="fpm"
+			fi
+			MODE_UPPERCASE=`echo ${MODE_OPT} | tr "[a-z]" "[A-Z]"`
+			READ_VAR="${MODE_UPPERCASE}_CONFIGURE_ENDING"
+			ENDING_VAR=$(eval_var ${READ_VAR})
+			AVAIL_CONFIGS="${AVAIL_CONFIGS}${MODE_OPT}_php${PHP3_SHORTRELEASE} "
+			eval `echo "CUSTOMIZE_${MODE_UPPERCASE}_PHP${PHP3_SHORTRELEASE}_DESC=\"PHP ${PHP3_RELEASE_OPT} as ${MODE_OPT} (additional) configuration file\""`
+			READ_VAR="PHP${PHP3_SHORTRELEASE}${ENDING_VAR}"
+			eval `echo "CUSTOMIZE_${MODE_UPPERCASE}_PHP${PHP3_SHORTRELEASE}_READ=\"${WORKDIR}/$(eval_var ${READ_VAR})\""`
+			PLUGIN_WRITE=`echo $(eval_var ${READ_VAR}) | perl -0p -e 's|^custom/||' | perl -0p -e 's|^configure/||'`
+			eval `echo "CUSTOMIZE_${MODE_UPPERCASE}_PHP${PHP3_SHORTRELEASE}_WRITE=\"${PLUGIN_PATH}/${PLUGIN_WRITE}\""`
+		fi
 	fi
-
-	#PHP4
 	if [ "${PHP4_RELEASE_OPT}" != "no" ]; then
-		AVAIL_CONFIGS="${AVAIL_CONFIGS}php${PHP4_SHORTRELEASE} "
-		eval `echo "CUSTOMIZE_PHP${PHP4_SHORTRELEASE}_DESC=\"PHP ${PHP4_RELEASE_OPT} as ${PHP4_MODE_OPT} (additional) configuration file\""`
-		READ_VAR="PHP${PHP4_SHORTRELEASE}${PHP_CONFIGURE_ENDING}"
-		eval `echo "CUSTOMIZE_PHP${PHP4_SHORTRELEASE}_READ=\"${WORKDIR}/$(eval_var ${READ_VAR})\""`
-		PLUGIN_WRITE=`echo $(eval_var ${READ_VAR}) | perl -0p -e 's|^custom/||' | perl -0p -e 's|^configure/||'`
-		eval `echo "CUSTOMIZE_PHP${PHP4_SHORTRELEASE}_WRITE=\"${PLUGIN_PATH}/${PLUGIN_WRITE}\""`
+		if [ "${PHP4_MODE_OPT}" = "mod_php" ]; then
+			AVAIL_CONFIGS="${AVAIL_CONFIGS}ap2_php${PHP4_SHORTRELEASE} "
+			eval `echo "CUSTOMIZE_AP2_PHP${PHP4_SHORTRELEASE}_DESC=\"PHP ${PHP4_RELEASE_OPT} as ${PHP4_MODE_OPT} (additional) configuration file\""`
+			READ_VAR="PHP${PHP4_SHORTRELEASE}${MOD_PHP_CONFIGURE_ENDING}"
+			eval `echo "CUSTOMIZE_AP2_PHP${PHP4_SHORTRELEASE}_READ=\"${WORKDIR}/$(eval_var ${READ_VAR})\""`
+			PLUGIN_WRITE=`echo $(eval_var ${READ_VAR}) | perl -0p -e 's|^custom/||' | perl -0p -e 's|^configure/||'`
+			eval `echo "CUSTOMIZE_AP2_PHP${PHP4_SHORTRELEASE}_WRITE=\"${PLUGIN_PATH}/${PLUGIN_WRITE}\""`
+		elif [ "${PHP4_MODE_OPT}" = "lsphp" ]; then
+			AVAIL_CONFIGS="${AVAIL_CONFIGS}litespeed_php${PHP4_SHORTRELEASE} "
+			eval `echo "CUSTOMIZE_LITESPEED_PHP${PHP4_SHORTRELEASE}_DESC=\"PHP ${PHP4_RELEASE_OPT} as ${PHP4_MODE_OPT} (additional) configuration file\""`
+			READ_VAR="PHP${PHP4_SHORTRELEASE}${LSPHP_CONFIGURE_ENDING}"
+			eval `echo "CUSTOMIZE_LITESPEED_PHP${PHP4_SHORTRELEASE}_READ=\"${WORKDIR}/$(eval_var ${READ_VAR})\""`
+			PLUGIN_WRITE=`echo $(eval_var ${READ_VAR}) | perl -0p -e 's|^custom/||' | perl -0p -e 's|^configure/||'`
+			eval `echo "CUSTOMIZE_LITESPEED_PHP${PHP4_SHORTRELEASE}_WRITE=\"${PLUGIN_PATH}/${PLUGIN_WRITE}\""`
+		elif [ "${PHP4_MODE_OPT}" = "fastcgi" ] || [ "${PHP4_MODE_OPT}" = "suphp" ] || [ "${PHP4_MODE_OPT}" = "php-fpm" ]; then
+			MODE_OPT="${PHP4_MODE_OPT}"
+			if [ "${MODE_OPT}" = "php-fpm" ]; then
+				MODE_OPT="fpm"
+			fi
+			MODE_UPPERCASE=`echo ${MODE_OPT} | tr "[a-z]" "[A-Z]"`
+			READ_VAR="${MODE_UPPERCASE}_CONFIGURE_ENDING"
+			ENDING_VAR=$(eval_var ${READ_VAR})
+			AVAIL_CONFIGS="${AVAIL_CONFIGS}${MODE_OPT}_php${PHP4_SHORTRELEASE} "
+			eval `echo "CUSTOMIZE_${MODE_UPPERCASE}_PHP${PHP4_SHORTRELEASE}_DESC=\"PHP ${PHP4_RELEASE_OPT} as ${MODE_OPT} (additional) configuration file\""`
+			READ_VAR="PHP${PHP4_SHORTRELEASE}${ENDING_VAR}"
+			eval `echo "CUSTOMIZE_${MODE_UPPERCASE}_PHP${PHP4_SHORTRELEASE}_READ=\"${WORKDIR}/$(eval_var ${READ_VAR})\""`
+			PLUGIN_WRITE=`echo $(eval_var ${READ_VAR}) | perl -0p -e 's|^custom/||' | perl -0p -e 's|^configure/||'`
+			eval `echo "CUSTOMIZE_${MODE_UPPERCASE}_PHP${PHP4_SHORTRELEASE}_WRITE=\"${PLUGIN_PATH}/${PLUGIN_WRITE}\""`
+		fi
 	fi
 }
 
@@ -6985,14 +7038,22 @@ removeComponentConfig() {
 
 ####################################################
 
-addToAccess() {
-	if [ -z $1 ]; then
-		return
-	fi
+addNginxToAccess() {
 	# Check for nginx user in access group
 	if grep -m1 -q "^access" /etc/group; then
-		if ! grep -m1 "^access" /etc/group | grep -q $1; then
-			usermod -G access $1
+		if ! grep -m1 "^access" /etc/group | grep -q nginx; then
+			usermod -G access nginx
+		fi
+	fi
+}
+
+####################################################
+
+addNginxUnitToAccess() {
+	# Check for nginx user in access group
+	if grep -m1 -q "^access" /etc/group; then
+		if ! grep -m1 "^access" /etc/group | grep -q nginx_unit; then
+			usermod -G access nginx_unit
 		fi
 	fi
 }
@@ -7429,7 +7490,7 @@ dophpMyAdmin() {
 			PMA_DIRECT_LOGIN_VER=`getVer pma_direct_login`
 			PMA_DIRECT_LOGIN="phpMyAdmin_direct_login-${PMA_DIRECT_LOGIN_VER}.tar.gz"
 			cd ${REALPATH}
-			curl ${CURL_CONNECT_OPTIONS} -o ${PMA_DIRECT_LOGIN} ${WEBPATH_SERVICES}/all/auto_login/phpMyAdmin/${PMA_DIRECT_LOGIN}
+			wget ${WGET_CONNECT_OPTIONS} -O ${PMA_DIRECT_LOGIN} ${WEBPATH_SERVICES}/all/auto_login/phpMyAdmin/${PMA_DIRECT_LOGIN}
 			tar xzf ${PMA_DIRECT_LOGIN}
 			chown -R webapps:webapps direct_login
 			chmod 711 direct_login
@@ -7632,7 +7693,7 @@ doSquirrelmail() {
 	CONFIG=${REALPATH}/config/config.php
 
 	if [ ! -s ${TARFILE} ]; then
-		curl ${CURL_CONNECT_OPTIONS} -o ${TARFILE} ${WEBPATH_SERVICES}/all/squirrelmail-${SQUIRRELMAIL_VER}.tar.gz
+		wget ${WGET_CONNECT_OPTIONS} -O ${TARFILE} ${WEBPATH_SERVICES}/all/squirrelmail-${SQUIRRELMAIL_VER}.tar.gz
 	fi
 
 	if [ ! -s ${TARFILE} ]; then
@@ -7641,11 +7702,11 @@ doSquirrelmail() {
 	fi
 
 	if [ ! -s ${LOCALEFILE} ]; then
-		curl ${CURL_CONNECT_OPTIONS} -o ${LOCALEFILE} ${WEBPATH_SERVICES}/all/squirrelmail/locales/all_locales-${SQUIRRELMAIL_LOCALE_VER}.tar.gz
+		wget ${WGET_CONNECT_OPTIONS} -O ${LOCALEFILE} ${WEBPATH_SERVICES}/all/squirrelmail/locales/all_locales-${SQUIRRELMAIL_LOCALE_VER}.tar.gz
 	fi
 
 	if [ ! -s ${LOGGERFILE} ]; then
-		curl ${CURL_CONNECT_OPTIONS} -o ${LOGGERFILE} ${WEBPATH_SERVICES}/all/squirrelmail/squirrel_logger/squirrel_logger-${SQUIRRELMAIL_LOGGER_VER}.tar.gz
+		wget ${WGET_CONNECT_OPTIONS} -O ${LOGGERFILE} ${WEBPATH_SERVICES}/all/squirrelmail/squirrel_logger/squirrel_logger-${SQUIRRELMAIL_LOGGER_VER}.tar.gz
 	fi
 
 	M=`checkMD5 $TARFILE ${SQUIRRELMAIL_VER_NAME}`
@@ -7653,7 +7714,7 @@ doSquirrelmail() {
 		echo ""
 		echo "${boldon}*** MD5 Checksum for $TARFILE Failed.  Redownloading...***${boldoff}"
 		echo ""
-		curl ${CURL_CONNECT_OPTIONS} -o ${TARFILE} ${WEBPATH_SERVICES}/all/squirrelmail-${SQUIRRELMAIL_VER}.tar.gz
+		wget ${WGET_CONNECT_OPTIONS} -O ${TARFILE} ${WEBPATH_SERVICES}/all/squirrelmail-${SQUIRRELMAIL_VER}.tar.gz
 
 		M=`checkMD5 $TARFILE ${SQUIRRELMAIL_VER_NAME}`
 		if [ "$M" != "0" ]; then
@@ -7670,13 +7731,13 @@ doSquirrelmail() {
 	M=`checkMD5 ${LOCALEFILE} squirrelmail_locale`
 	if [ "$M" != "0" ]; then
 		echo "${boldon}*** MD5 Checksum for $LOCALEFILE Failed.  Redownloading...***${boldoff}"
-		curl ${CURL_CONNECT_OPTIONS} -o ${LOCALEFILE} ${WEBPATH_SERVICES}/all/squirrelmail/locales/all_locales-${SQUIRRELMAIL_LOCALE_VER}.tar.gz
+		wget ${WGET_CONNECT_OPTIONS} -O ${LOCALEFILE} ${WEBPATH_SERVICES}/all/squirrelmail/locales/all_locales-${SQUIRRELMAIL_LOCALE_VER}.tar.gz
 	fi
 
 	M=`checkMD5 ${LOGGERFILE} squirrel_logger`
 	if [ "$M" != "0" ]; then
 		echo "${boldon}*** MD5 Checksum for ${LOGGERFILE} Failed.  Redownloading...***${boldoff}"
-		curl ${CURL_CONNECT_OPTIONS} -o ${LOGGERFILE} ${WEBPATH_SERVICES}/all/squirrelmail/squirrel_logger/squirrel_logger-${SQUIRRELMAIL_LOGGER_VER}.tar.gz
+		wget ${WGET_CONNECT_OPTIONS} -O ${LOGGERFILE} ${WEBPATH_SERVICES}/all/squirrelmail/squirrel_logger/squirrel_logger-${SQUIRRELMAIL_LOGGER_VER}.tar.gz
 	fi
 
 	#Extract the file
@@ -7840,10 +7901,8 @@ doCustombuildPlugin() {
 	
 	cd ${CWD}
 	mkdir -p /usr/local/directadmin/plugins/custombuild
-	chown diradmin:diradmin /usr/local/directadmin/plugins
-	chmod 711 /usr/local/directadmin/plugins
 	chown diradmin:diradmin /usr/local/directadmin/plugins/custombuild
-	curl ${CURL_CONNECT_OPTIONS} -o custombuild_plugin.tar.gz ${WEBPATH}/plugin/custombuild.tar.gz
+	wget -O custombuild_plugin.tar.gz ${WEBPATH}/plugin/custombuild.tar.gz
 	tar xzf custombuild_plugin.tar.gz -C /usr/local/directadmin/plugins/custombuild
 
 	/usr/local/directadmin/plugins/custombuild/scripts/install.sh 
@@ -7856,27 +7915,6 @@ doroundcube() {
 		do_exit 1 "You cannot install RoundCube webmail, because you do not have it set in options.conf file."
 	fi
 
-	MYSQLV="`mysql_main`"
-	OLD_MYSQL=false
-
-	if [ "`version_cmp ${ROUNDCUBE_VER} 1.5.0 'RC 1.5.0 MySQL cersion check'`" -ge 0 ]; then
-		if [ "`has_mariadb`" = "1" ]; then
-			if [ "${MYSQLV}" = "5.5" ] || [ "${MYSQLV}" = "10.0" ] || [ "${MYSQLV}" = "10.1" ]; then
-				OLD_MYSQL=true
-			fi
-		elif [ "${MYSQLV}" = "5.5" ] || [ "${MYSQLV}" = "5.6" ]; then
-			OLD_MYSQL=true
-		fi
-	fi
-	if ${OLD_MYSQL}; then
-		if ! grep -m1 -q 'innodb_file_format=Barracuda' /etc/my.cnf 2>/dev/null; then
-			echo "${boldon}RoundCube ${ROUNDCUBE_VER} requires newer version of ${MYSQLNAME} than ${MYSQLV}, alternatively, the following my.cnf configuration can be set:${boldoff}"
-			echo "innodb_large_prefix=1"
-			echo "innodb_file_per_table=1"
-			echo "innodb_file_format=Barracuda"
-			exit 1
-		fi
-	fi
 	ensure_webapps_logrotate
 
 	initMySQL
@@ -8171,7 +8209,7 @@ doroundcube() {
 					fi
 				fi
 				if [ ! -s mime.types ]; then
-					curl ${CURL_CONNECT_OPTIONS} -o mime.types https://svn.apache.org/repos/asf/httpd/httpd/trunk/docs/conf/mime.types 2> /dev/null
+					wget ${WGET_CONNECT_OPTIONS} -O mime.types https://svn.apache.org/repos/asf/httpd/httpd/trunk/docs/conf/mime.types 2> /dev/null
 				fi
 				echo "\$config['mime_types'] = '${ALIASPATH}/config/mime.types';" >> ${EDIT_CONFIG}
 			fi
@@ -8182,7 +8220,6 @@ doroundcube() {
 					/usr/bin/perl -pi -e "s|\['plugins'] = array\(\);|\['plugins'] = array\('password'\);|" ${EDIT_CONFIG} > /dev/null
 				else
 					/usr/bin/perl -pi -e "s|\['plugins'] = array\(\n|\['plugins'] = array\(\n    'password',\n|" ${EDIT_CONFIG} > /dev/null
-					/usr/bin/perl -pi -e "s|\['plugins'] = \[\n|\['plugins'] = \[\n    'password',\n|" ${EDIT_CONFIG} > /dev/null
 				fi
 				cd ${REALPATH}/config
 			fi
@@ -8195,7 +8232,6 @@ doroundcube() {
 					else
 						if [ `grep -m1 -c "'managesieve'" ${EDIT_CONFIG}` -eq 0 ]; then
 							/usr/bin/perl -pi -e "s|\['plugins'] = array\(\n|\['plugins'] = array\(\n    'managesieve',\n|" ${EDIT_CONFIG} > /dev/null
-							/usr/bin/perl -pi -e "s|\['plugins'] = \[\n|\['plugins'] = \[\n    'managesieve',\n|" ${EDIT_CONFIG} > /dev/null
 						fi
 					fi
 					cd ${REALPATH}/config
@@ -8209,7 +8245,7 @@ doroundcube() {
 				ROUNDCUBE_DIRECT_LOGIN_VER=`getVer rc_direct_login`
 				ROUNDCUBE_DIRECT_LOGIN="roundcube_direct_login-${ROUNDCUBE_DIRECT_LOGIN_VER}.tar.gz"
 				cd ${REALPATH}
-				curl ${CURL_CONNECT_OPTIONS} -o ${ROUNDCUBE_DIRECT_LOGIN} ${WEBPATH_SERVICES}/all/auto_login/roundcube/${ROUNDCUBE_DIRECT_LOGIN}
+				wget ${WGET_CONNECT_OPTIONS} -O ${ROUNDCUBE_DIRECT_LOGIN} ${WEBPATH_SERVICES}/all/auto_login/roundcube/${ROUNDCUBE_DIRECT_LOGIN}
 				tar xzf ${ROUNDCUBE_DIRECT_LOGIN}
 				chown -R webapps:webapps direct_login
 				chmod 711 direct_login
@@ -8563,7 +8599,6 @@ ensurepopb4smtp(){
 			fi
 		fi
 	fi
-	set_service da-popb4smtp ON
 }
 
 doLua(){
@@ -8831,51 +8866,6 @@ doMsmtp(){
 	writeLog "msmtp ${MSMTP_VER} installed"
 }
 
-createEtcVirtual(){
-	addUserGroup mail mail 12 12
-	addToAccess mail
-	VIRTUAL="/etc/virtual"
-	if [ ! -d ${VIRTUAL} ]; then
-		mkdir -p ${VIRTUAL}
-	fi
-	chown -f mail ${VIRTUAL}
-	chgrp -f mail ${VIRTUAL}
-	chmod 711 ${VIRTUAL}
-
-	if ! grep -q "^${HOSTNAME}$" ${VIRTUAL}/domains; then
-		echo "${HOSTNAME}" >> ${VIRTUAL}/domains
-	fi
-
-	if [ ! -s ${VIRTUAL}/limit ]; then
-		echo "1000" > ${VIRTUAL}/limit
-		chmod 644 ${VIRTUAL}/limit
-		chown -f mail:mail ${VIRTUAL}/limit
-	fi
-	if [ ! -s ${VIRTUAL}/limit_unknown ]; then
-		echo "0" > ${VIRTUAL}/limit_unknown
-		chmod 644 ${VIRTUAL}/limit_unknown
-		chown -f mail:mail ${VIRTUAL}/limit_unknown
-	fi
-	if [ ! -s ${VIRTUAL}/user_limit ]; then
-		echo "200" > ${VIRTUAL}/user_limit
-		chmod 644 ${VIRTUAL}/user_limit
-		chown -f mail:mail ${VIRTUAL}/user_limit
-	fi
-	if [ ! -d ${VIRTUAL}/usage ]; then
-		mkdir -p ${VIRTUAL}/usage
-	fi
-	chmod 750 ${VIRTUAL}/usage
-	chown -f mail:mail ${VIRTUAL}/usage
-
-	for i in domains domainowners pophosts blacklist_domains whitelist_from use_rbl_domains bad_sender_hosts bad_sender_hosts_ip blacklist_senders whitelist_domains whitelist_hosts whitelist_hosts_ip whitelist_senders skip_av_domains skip_rbl_domains; do
-        	if [ ! -e ${VIRTUAL}/$i ]; then
-				touch ${VIRTUAL}/$i
-			fi
-			chmod 600 ${VIRTUAL}/$i
-			chown -f mail:mail ${VIRTUAL}/$i
-	done
-}
-
 doExim() {
 	if [ "${EXIM_OPT}" != "yes" ]; then
 		do_exit 1 "You cannot update Exim, because you do not have it set in options.conf file."
@@ -8904,15 +8894,6 @@ doExim() {
 			echo "yum install db4-devel perl-ExtUtils-Embed"
 		fi
 		do_exit 0
-	fi
-
-	createEtcVirtual
-
-	V_U_RBL_D=${VIRTUAL}/use_rbl_domains
-	if [ -f ${V_U_RBL_D} ] && [ ! -s ${V_U_RBL_D} ]; then
-		rm -f ${V_U_RBL_D}
-		ln -s domains ${V_U_RBL_D}
-		chown -h mail:mail ${V_U_RBL_D}
 	fi
 
 	getFile exim-${EXIM_VER}.tar.gz exim
@@ -8981,6 +8962,7 @@ doExim() {
 
 	EXIM_SYS_FILE_PATCH=exim-sys-file-freebsd.patch
 	if [ ${OS} = "FreeBSD" ]; then
+		addUserGroup mail mail 12 12
 		getFile patches/${EXIM_SYS_FILE_PATCH} ${EXIM_SYS_FILE_PATCH}
 	fi
 	EXIM_C_2274=exim.c.bug-2274.patch
@@ -9006,11 +8988,6 @@ doExim() {
 
 	cd exim-${EXIM_VER}
 
-	if [ -x /usr/sbin/opendmarc ] && [ -s ./src/dmarc.c ]; then
-		if /usr/sbin/opendmarc -V | head -n1 | grep -q 'v1\.4'; then
-			perl -pi -e 's|  dkim_result, US""\);|  sig->selector, dkim_result, US"");|g' ./src/dmarc.c
-		fi
-	fi
 	# libnsl is only used for NIS and NIS+ lookups, compilation fails on CentOS8 due to no libnsl in glibc anymore
 	perl -pi -e 's/-lnsl//g' ./OS/Makefile-Linux
 
@@ -9018,7 +8995,7 @@ doExim() {
 		echo "${boldon}Custom ${EXIM_MAKEFILE} being used${boldoff}"
 		cp -f ${EXIM_MAKEFILE} Local/Makefile
 	else
-		#curl ${CURL_CONNECT_OPTIONS} -o Local/Makefile ${WEBPATH}/Makefile
+		#wget ${WGET_CONNECT_OPTIONS} -O Local/Makefile ${WEBPATH}/Makefile
 		cd ${CWD}
 		getFile Makefile '' exim-${EXIM_VER}/Local/Makefile
 		cd exim-${EXIM_VER}
@@ -9037,7 +9014,11 @@ doExim() {
 	fi
 
 	if [ -e /usr/local/include/spf2/spf.h ]; then
-		echo "SUPPORT_SPF=yes" >> Local/Makefile
+		if [ "`version_cmp ${EXIM_VER} 4.91`" -ge 0 ]; then
+			echo "SUPPORT_SPF=yes" >> Local/Makefile
+		else
+			echo "EXPERIMENTAL_SPF=yes" >> Local/Makefile
+		fi
 		echo "CFLAGS  += -DSPF -I/usr/local/include" >> Local/Makefile
 		echo "LDFLAGS += -lspf2" >> Local/Makefile
 	fi
@@ -9048,8 +9029,6 @@ doExim() {
 		echo "LDFLAGS += -lrt" >> Local/Makefile
 	fi
 	if [ -e /usr/local/include/srs_alt.h ]; then
-		echo "EXPERIMENTAL_SRS_ALT=yes " >> Local/Makefile
-		#For old versions of exim <4.95
 		echo "EXPERIMENTAL_SRS=yes " >> Local/Makefile
 		echo "LDFLAGS += -lsrs_alt" >> Local/Makefile
 	fi
@@ -9143,15 +9122,15 @@ doExim() {
 	chown mail:mail /etc/exim.cert /etc/exim.key
 
 	if [ ! -e /etc/exim.conf ]; then
-		curl ${CURL_CONNECT_OPTIONS} -o /etc/exim.conf $WEBPATH/exim.conf
-		curl ${CURL_CONNECT_OPTIONS} -o /etc/exim.pl $WEBPATH/exim.pl
+		wget ${WGET_CONNECT_OPTIONS} -O /etc/exim.conf $WEBPATH/exim.conf
+		wget ${WGET_CONNECT_OPTIONS} -O /etc/exim.pl $WEBPATH/exim.pl
 	fi
 	
 	if [ ! -e /etc/system_filter.exim ]; then
 		if [ -e ${CWD}/custom/exim/system_filter.exim ]; then
 			cp -f ${CWD}/custom/exim/system_filter.exim /etc/system_filter.exim
 		else
-			curl ${CURL_CONNECT_OPTIONS} -o /etc/system_filter.exim ${WEBPATH}/system_filter.exim
+			wget ${WGET_CONNECT_OPTIONS} -O /etc/system_filter.exim ${WEBPATH}/system_filter.exim
 		fi
 	fi
 
@@ -9264,7 +9243,6 @@ doExim() {
 
 	echo "Restarting exim."
 	control_service exim restart
-	set_service exim ON
 
 	if [ -x /usr/sbin/alternatives ]; then
 		if ! /usr/sbin/alternatives  --list | grep -m1 -q '^mta.*/usr/sbin/exim$'; then
@@ -9498,22 +9476,26 @@ doGrubConf() {
 							fi
 						fi
 						if ${GRUB_CONF_MODIFIED}; then
-							find /boot -name 'grub.cfg' -exec ${GRUB_MKCONFIG} -o {} \;
+							for grub_config in "${GRUB_CONF_LOCATIONS}"; do {
+								${GRUB_MKCONFIG} -o ${grub_config}
+							}
+							done
 						fi
 					else
-						if ! grep -m1 -q 'systemd.unified_cgroup_hierarchy' /etc/default/grub; then
-							if ! ${HAS_XFS_ROOT}; then
-								echo 'GRUB_CMDLINE_LINUX_DEFAULT="${GRUB_CMDLINE_LINUX_DEFAULT} systemd.unified_cgroup_hierarchy=1 psi=1"' >> /etc/default/grub
-							elif ! grep -m1 -q 'rootflags' /etc/default/grub; then
-								echo 'GRUB_CMDLINE_LINUX_DEFAULT="${GRUB_CMDLINE_LINUX_DEFAULT} rootflags=uquota,pquota systemd.unified_cgroup_hierarchy=1 psi=1"' >> /etc/default/grub
-							else
-								echo 'GRUB_CMDLINE_LINUX_DEFAULT="${GRUB_CMDLINE_LINUX_DEFAULT} systemd.unified_cgroup_hierarchy=1 psi=1"' >> /etc/default/grub
+						for grub_config in "${GRUB_CONF_LOCATIONS}"; do {
+							if ! grep -m1 -q 'systemd.unified_cgroup_hierarchy' /etc/default/grub; then
+								if ! ${HAS_XFS_ROOT}; then
+									echo 'GRUB_CMDLINE_LINUX_DEFAULT="${GRUB_CMDLINE_LINUX_DEFAULT} systemd.unified_cgroup_hierarchy=1 psi=1"' >> /etc/default/grub
+								elif ! grep -m1 -q 'rootflags' /etc/default/grub; then
+									echo 'GRUB_CMDLINE_LINUX_DEFAULT="${GRUB_CMDLINE_LINUX_DEFAULT} rootflags=uquota,pquota systemd.unified_cgroup_hierarchy=1 psi=1"' >> /etc/default/grub
+								else
+									echo 'GRUB_CMDLINE_LINUX_DEFAULT="${GRUB_CMDLINE_LINUX_DEFAULT} systemd.unified_cgroup_hierarchy=1 psi=1"' >> /etc/default/grub
+								fi
+								GRUB_CONF_MODIFIED=true
+								${GRUB_MKCONFIG} -o ${grub_config}
 							fi
-							GRUB_CONF_MODIFIED=true
-						fi
-						if ${GRUB_CONF_MODIFIED}; then
-							find /boot -name 'grub.cfg' -exec ${GRUB_MKCONFIG} -o {} \;
-						fi
+						}
+						done
 					fi
 			fi
 		fi
@@ -9526,7 +9508,7 @@ doGrubConf() {
 								echo 'GRUB_CMDLINE_LINUX_DEFAULT="${GRUB_CMDLINE_LINUX_DEFAULT} rootflags=uquota,pquota"' >> /etc/default/grub
 							fi
 							GRUB_CONF_MODIFIED=true
-							find /boot -name 'grub.cfg' -exec ${GRUB_MKCONFIG} -o {} \;
+							${GRUB_MKCONFIG} -o ${grub_config}
 						fi
 					}
 					done
@@ -9572,14 +9554,10 @@ doEximConf() {
 		fi
 		EXIM_CONF_VER=4.5.24
 		echo "Selecting exim.conf 4.5.24 automatically, as older versions are not supported with exim 4.94 and newer."
-	elif [ ${EXIMV_MINORV} -lt 95 ]; then
-		EXIM_CONF_VER=4.5.35
-		echo "Selecting exim.conf 4.5.35 automatically, as older versions are not supported with exim 4.95 and newer."
 	fi
-	
-	curl ${CURL_CONNECT_OPTIONS} -o /etc/exim.conf.cb20 ${DOWNLOADSERVER_SCHEME}://${DOWNLOADSERVER_OPT}/services/SpamBlocker/${EXIM_CONF_VER}/exim.conf-SpamBlockerTechnology-v${EXIM_CONF_VER}.txt
+	wget ${WGET_CONNECT_OPTIONS} -O /etc/exim.conf.cb20 ${DOWNLOADSERVER_SCHEME}://${DOWNLOADSERVER_OPT}/services/SpamBlocker/${EXIM_CONF_VER}/exim.conf-SpamBlockerTechnology-v${EXIM_CONF_VER}.txt
 
-	#Don't overwrite exim.conf if curl failed (empty exim.conf file)
+	#Don't overwrite exim.conf if wget failed (empty exim.conf file)
 	if [ -s /etc/exim.conf.cb20 ]; then
 		mv -f /etc/exim.conf.cb20 /etc/exim.conf
 	else
@@ -9594,13 +9572,13 @@ doEximConf() {
 	if [ -e ${CWD}/custom/exim/system_filter.exim ]; then
 		cp -f ${CWD}/custom/exim/system_filter.exim /etc/system_filter.exim
 	else
-		curl ${CURL_CONNECT_OPTIONS} -o /etc/system_filter.exim ${WEBPATH}/system_filter.exim
+		wget ${WGET_CONNECT_OPTIONS} -O /etc/system_filter.exim ${WEBPATH}/system_filter.exim
 	fi
 	
 	#Download additional files for exim.conf
 	if [ "${EXIMCONF_RELEASE_OPT}" != "2.1" ] && [ "${EXIMCONF_RELEASE_OPT}" != "4.2" ]; then
-		curl ${CURL_CONNECT_OPTIONS} -o /etc/exim.strings.conf.cb20 ${DOWNLOADSERVER_SCHEME}://${DOWNLOADSERVER_OPT}/services/SpamBlocker/${EXIM_CONF_VER}/exim.strings.conf
-		curl ${CURL_CONNECT_OPTIONS} -o /etc/exim.variables.conf.cb20 ${DOWNLOADSERVER_SCHEME}://${DOWNLOADSERVER_OPT}/services/SpamBlocker/${EXIM_CONF_VER}/exim.variables.conf.default
+		wget ${WGET_CONNECT_OPTIONS} -O /etc/exim.strings.conf.cb20 ${DOWNLOADSERVER_SCHEME}://${DOWNLOADSERVER_OPT}/services/SpamBlocker/${EXIM_CONF_VER}/exim.strings.conf
+		wget ${WGET_CONNECT_OPTIONS} -O /etc/exim.variables.conf.cb20 ${DOWNLOADSERVER_SCHEME}://${DOWNLOADSERVER_OPT}/services/SpamBlocker/${EXIM_CONF_VER}/exim.variables.conf.default
 
 		EXIM_CONF_MERGED=/etc/exim.variables.conf.merged
 		EXIM_CONF_DEFAULT=/etc/exim.variables.conf.default
@@ -9727,7 +9705,7 @@ doEximConf() {
 	ensure_keep_environment ${EXIMCONF_RELEASE_OPT}
 	
 
-	curl ${CURL_CONNECT_OPTIONS} -o /etc/exim.pl.cb20 ${DOWNLOADSERVER_SCHEME}://${DOWNLOADSERVER_OPT}/services/exim.pl.${EXIM_PL_VER}
+	wget ${WGET_CONNECT_OPTIONS} -O /etc/exim.pl.cb20 ${DOWNLOADSERVER_SCHEME}://${DOWNLOADSERVER_OPT}/services/exim.pl.${EXIM_PL_VER}
 
 	if [ -s /etc/exim.pl.cb20 ]; then
 		mv -f /etc/exim.pl.cb20 /etc/exim.pl
@@ -9828,7 +9806,7 @@ doEximConf() {
 		if [ "`version_cmp ${EXIMCONF_RELEASE_OPT} 4.6 'exim.conf ver check for ACL spam check'`" -lt 0 ]; then
 			perl -pi -e 's|#.include_if_exists /etc/exim.spamassassin.conf|.include_if_exists /etc/exim.spamassassin.conf|' /etc/exim.conf
 			if [ ! -s /etc/exim.spamassassin.conf ]; then
-					curl ${CURL_CONNECT_OPTIONS} -o /etc/exim.spamassassin.conf ${DOWNLOADSERVER_SCHEME}://${DOWNLOADSERVER_OPT}/services/exim.spamassassin.conf
+					wget ${WGET_CONNECT_OPTIONS} -O /etc/exim.spamassassin.conf ${DOWNLOADSERVER_SCHEME}://${DOWNLOADSERVER_OPT}/services/exim.spamassassin.conf
 					chmod 644 /etc/exim.spamassassin.conf
 			fi
 			rm -f /etc/exim.spamd.conf
@@ -9888,7 +9866,7 @@ doEximConf() {
 				echo "${boldon}Copying custom ${CUST_EXIM_DKIM_CONF} to /etc/exim.dkim.conf${boldoff}"
 				/bin/cp -f ${CUST_EXIM_DKIM_CONF} /etc/exim.dkim.conf
 			else
-				curl ${CURL_CONNECT_OPTIONS} -o /etc/exim.dkim.conf ${DOWNLOADSERVER_SCHEME}://${DOWNLOADSERVER_OPT}/services/exim.dkim.conf
+				wget ${WGET_CONNECT_OPTIONS} -O /etc/exim.dkim.conf ${DOWNLOADSERVER_SCHEME}://${DOWNLOADSERVER_OPT}/services/exim.dkim.conf
 			fi
 		fi
 
@@ -9902,10 +9880,10 @@ doEximConf() {
 		perl -pi -e 's|#.include_if_exists /etc/exim.clamav.conf|.include_if_exists /etc/exim.clamav.conf|' /etc/exim.conf
 		if [ "${CLAMAV_EXIM_OPT}" = "yes" ]; then
 			if [ ! -s /etc/exim.clamav.load.conf ]; then
-				curl ${CURL_CONNECT_OPTIONS} -o /etc/exim.clamav.load.conf ${DOWNLOADSERVER_SCHEME}://${DOWNLOADSERVER_OPT}/services/exim.clamav.load.conf
+				wget ${WGET_CONNECT_OPTIONS} -O /etc/exim.clamav.load.conf ${DOWNLOADSERVER_SCHEME}://${DOWNLOADSERVER_OPT}/services/exim.clamav.load.conf
 			fi
 			if [ ! -s /etc/exim.clamav.conf ]; then
-				curl ${CURL_CONNECT_OPTIONS} -o /etc/exim.clamav.conf ${DOWNLOADSERVER_SCHEME}://${DOWNLOADSERVER_OPT}/services/exim.clamav.conf
+				wget ${WGET_CONNECT_OPTIONS} -O /etc/exim.clamav.conf ${DOWNLOADSERVER_SCHEME}://${DOWNLOADSERVER_OPT}/services/exim.clamav.conf
 			fi
 		fi
 	else
@@ -10258,6 +10236,17 @@ setup_my_cnf() {
 	fi
 }
 
+have_lib() {
+	L=$1
+	for LIBPPATH in /usr/lib /usr/lib/i386-linux-gnu /usr/lib64 /lib64 /lib /lib/i386-linux-gnu /usr/lib/x86_64-linux-gnu; do
+		if [ -e ${LIBPPATH}/$L ]; then
+			echo  1
+			return
+		fi
+	done
+	echo 0
+}
+
 ensure_libnuma() {
 	if [ ! -e /usr/lib/libnuma.so.1 ] && [ ! -e /usr/lib/i386-linux-gnu/libnuma.so.1 ] && [ ! -e /usr/lib64/libnuma.so.1 ] && [ ! -e /lib64/libnuma.so.1 ] && [ ! -e /lib/libnuma.so.1 ] && [ ! -e /lib/i386-linux-gnu/libnuma.so.1 ] && [ ! -e /usr/lib/x86_64-linux-gnu/libnuma.so.1 ]; then
 		if [ "${OS}" = "FreeBSD" ]; then
@@ -10271,18 +10260,20 @@ ensure_libnuma() {
 		fi
 	fi
 }
-
 ensure_libpmem() {
-	if [ ! -e /usr/lib/libpmem.so.1 ] && [ ! -e /usr/lib/i386-linux-gnu/libpmem.so.1 ] && [ ! -e /usr/lib64/libpmem.so.1 ] && [ ! -e /lib64/libpmem.so.1 ] && [ ! -e /lib/libpmem.so.1 ] && [ ! -e /lib/i386-linux-gnu/libpmem.so.1 ] && [ ! -e /usr/lib/x86_64-linux-gnu/libpmem.so.1 ]; then
-		if [ "${OS}" = "FreeBSD" ]; then
-			echo "There is no libpmem for FreeBSD kernel."
-		elif [ -e /etc/debian_version ]; then
-			echo "Cannot find libpmem.so.1, installing using apt-get..."
-			apt-get -y install libpmem-dev libpmem1
-		else
-			echo "Cannot find libpmem.so.1, installing using yum..."
-			yum -y install libpmem
-		fi
+	HAVE_LIBPMEM=`have_lib`
+	if [ "${HAVE_LIBPMEM}" = "1" ]; then
+		return;
+	fi
+
+	if [ "${OS}" = "FreeBSD" ]; then
+		echo "There is no libpmem for FreeBSD kernel."
+	elif [ -e /etc/debian_version ]; then
+		echo "Cannot find libpmem.so.1, installing using apt-get..."
+		apt-get -y install libpmem-dev libpmem1
+	else
+		echo "Cannot find libpmem.so.1, installing using yum..."
+		yum -y install libpmem
 	fi
 }
 
@@ -10303,11 +10294,7 @@ setup_mysql_root_user() {
 			perl -pi -e "s|\=nothing$|=${MYSQLPASSWORD}|g" ${DA_MY_CNF}
 		fi
 		if [ -s /usr/local/directadmin/scripts/setup.txt ]; then
-			if grep -q '^mysql\=' /usr/local/directadmin/scripts/setup.txt; then
-				perl -pi -e "s|^mysql\=.*$|mysql=${MYSQLPASSWORD}|g" /usr/local/directadmin/scripts/setup.txt
-			else
-				echo "mysql=${MYSQLPASSWORD}" >> /usr/local/directadmin/scripts/setup.txt
-			fi
+			perl -pi -e "s|^mysql\=.*$|mysql=${MYSQLPASSWORD}|g" /usr/local/directadmin/scripts/setup.txt
 		fi
 	fi
 	if [ -z "${SQL_PATH_IS_SETUP}" ]; then
@@ -10506,27 +10493,6 @@ doMySQL() {
 
 	doMySQLback
 
-	if [ ! -e /root/.skip_mysql_install ]; then
-		#setup a basic my.cnf file.
-		MYCNF=/etc/my.cnf
-		if [ ! -e $MYCNF ]; then
-			echo "[mysqld]" > $MYCNF
-			echo "local-infile=0" >> $MYCNF
-			echo "innodb_file_per_table" >> $MYCNF
-
-			#we don't want conflicts
-			if [ -e /etc/debian_version ]; then
-				if [ "${SYSTEMD}" = "yes" ]; then
-					echo "" >> $MYCNF
-					echo "[client]" >> $MYCNF
-					echo "socket=/usr/local/mysql/data/mysql.sock" >> $MYCNF
-				fi
-				if [ -d /etc/mysql ]; then
-					mv /etc/mysql /etc/mysql.moved
-				fi
-			fi
-		fi
-	fi
 	cd ${CWD}
 
 	SQL_PATH=${CWD}/mysql
@@ -10592,7 +10558,7 @@ doMySQL() {
 			if [ "${BINPACK}" != "" ]; then
 				#attempt the download.
 				if [ ! -s ${BINPACK} ]; then
-					curl ${CURL_CONNECT_OPTIONS} -o ${BINPACK} ${MYSQLURL}/${BINPACK}
+					wget ${WGET_CONNECT_OPTIONS} -O ${BINPACK} ${MYSQLURL}/${BINPACK}
 					if [ $? -ne 0 ]; then
 						echo "Failed to download ${MYSQLURL}/${MYSQLPACK}.tar.gz. Reverting to compile..."
 						BINPACK=""
@@ -10601,7 +10567,7 @@ doMySQL() {
 				fi
 
 				BINPACK_MD5=${BINPACK}.md5
-				curl ${CURL_CONNECT_OPTIONS} -o ${BINPACK_MD5} ${MYSQLURL}/${BINPACK_MD5}
+				wget ${WGET_CONNECT_OPTIONS} -O ${BINPACK_MD5} ${MYSQLURL}/${BINPACK_MD5}
 				if [ ! -s ${BINPACK_MD5} ]; then
 					#nothing to check against.
 					rm -f ${BINPACK_MD5};
@@ -10793,9 +10759,6 @@ doMySQL() {
 			MYSQLPACK=mysql-${MYSQL_VER}-${LINUX_STR}-${MACHINE}
 		fi
 
-		if [ "${MYSQL_INST_OPT}" = "mariadb" ] && [ "${MARIADB_OPT}" = "10.6" ]; then
-			ensure_libpmem
-		fi
 		#debian needs libnuma1 now, as well: libnuma-dev libnuma1
 		ensure_libnuma
 		
@@ -10808,7 +10771,7 @@ doMySQL() {
 #			GALERA_FOLDER=`echo ${GALERA_FILE} | perl -p0 -e 's#\.tar\.gz##g'`
 #		fi
 #		if [ ! -s ${GALERA_FILE} ]; then
-#			curl ${CURL_CONNECT_OPTIONS} -o ${GALERA_FILE} ${WEBPATH_SERVICES}/all/mariadb/galera/${GALERA_VER}/${GALERA_FILE}
+#			wget ${WGET_CONNECT_OPTIONS} -O ${GALERA_FILE} ${WEBPATH_SERVICES}/all/mariadb/galera/${GALERA_VER}/${GALERA_FILE}
 #			if [ $? -ne 0 ]; then
 #				do_exit 1 "Failed to download ${WEBPATH_SERVICES}/all/mariadb/galera/${GALERA_VER}/${GALERA_FILE}. Exiting..."
 #			fi
@@ -10826,7 +10789,7 @@ doMySQL() {
 		fi
 		if [ "${MYSQL_FORCE_COMPILE_OPT}" != "yes" ]; then
 			if [ ! -s ${MYSQLPACK}.${MYSQL_PACK_EXT} ]; then
-				curl ${CURL_CONNECT_OPTIONS} -o ${MYSQLPACK}.${MYSQL_PACK_EXT} ${MYSQLURL}/${MYSQLPACK}.${MYSQL_PACK_EXT}
+				wget ${WGET_CONNECT_OPTIONS} -O ${MYSQLPACK}.${MYSQL_PACK_EXT} ${MYSQLURL}/${MYSQLPACK}.${MYSQL_PACK_EXT}
 				if [ $? -ne 0 ]; then
 					do_exit 1 "Failed to download ${MYSQLURL}/${MYSQLPACK}.${MYSQL_PACK_EXT}. Exiting..."
 				fi
@@ -10898,14 +10861,6 @@ doMySQL() {
 
 		echo "Stopping mysqld ..."
 		control_service mysqld stop
-		if [ "${SYSTEMD}" = "yes" ]; then
-			if ! systemctl is-active --quiet mysqld; then
-				echo "Service didn't get stopped, sleeping for 20 secs and re-trying ..."
-				sleep 20
-				echo "Stopping mysqld ..."
-				control_service mysqld stop
-			fi
-		fi
 
 		if [ "${SYSTEMD}" = "yes" ]; then
 			MYSQL_SYSTEMD=${CB_SYSTEMD}/mysqld.service.debian
@@ -11387,14 +11342,6 @@ doMySQL() {
 		
 		echo "Stopping mysqld ..."
 		control_service mysqld stop
-		if [ "${SYSTEMD}" = "yes" ]; then
-			if ! systemctl is-active --quiet mysqld; then
-				echo "Service didn't get stopped, sleeping for 20 secs and re-trying ..."
-				sleep 20
-				echo "Stopping mysqld ..."
-				control_service mysqld stop
-			fi
-		fi
 
 		#MariaDB renames my.cnf to rpmsave when removing RPMs, if we detect rpmsave before installation, we rename the file: https://mariadb.atlassian.net/browse/MDEV-4954
 		if [ -e /etc/my.cnf.rpmsave ]; then
@@ -12039,7 +11986,7 @@ set_sendmail_link() {
 		E=`grep -m1 -c exim ${MC}`
 		if [ "${E}" -eq 0 ]; then
 			cp -f ${MC} ${MC}.backup
-			curl ${CURL_CONNECT_OPTIONS} -o ${T} ${WEBPATH_SERVICES}/mailer.conf
+			wget ${WGET_CONNECT_OPTIONS} -O ${T} ${WEBPATH_SERVICES}/mailer.conf
 
 			if [ ! -s ${T} ]; then
 				${LINK_TO_EXIM}
@@ -12107,9 +12054,6 @@ doExtensions_build() {
 		if [ "${PHP_GMP_OPT}" = "yes" ]; then
 			perl -pi -e 's|^extension=gmp.so|;extension=gmp.so|' ${EXTENSION_INT_PHP_INI}
 		fi
-		if [ "${PHP_IGBINARY_OPT}" = "yes" ]; then
-			perl -pi -e 's|^extension=igbinary.so|;extension=igbinary.so|' ${EXTENSION_INT_PHP_INI}
-		fi
 		if [ "${IMAGICK_OPT}" = "yes" ]; then
 			perl -pi -e 's|^extension=imagick.so|;extension=imagick.so|' ${EXTENSION_INT_PHP_INI}
 		fi
@@ -12154,7 +12098,7 @@ doExtensions_build() {
 
 		if [ -e ${EXTENSION_INT_EXT_INI} ]; then
 			echo "extension_dir=${EXTENSION_INT_EXT_DIR}" >> ${EXTENSION_INT_EXT_INI}
-			if [ "${SUHOSIN_OPT}" = "yes" ] && [ "${EXTENSION_INT_RELEASE}" != "5.3" ] && [ "${EXTENSION_INT_RELEASE}" != "7.0" ] && [ "${EXTENSION_INT_RELEASE}" != "7.1" ] && [ "${EXTENSION_INT_RELEASE}" != "7.2" ] && [ "${EXTENSION_INT_RELEASE}" != "7.3" ] && [ "${EXTENSION_INT_RELEASE}" != "7.4" ] && [ "${EXTENSION_INT_RELEASE}" != "8.0" ] && [ "${EXTENSION_INT_RELEASE}" != "8.1" ]; then
+			if [ "${SUHOSIN_OPT}" = "yes" ] && [ "${EXTENSION_INT_RELEASE}" != "5.3" ] && [ "${EXTENSION_INT_RELEASE}" != "7.0" ] && [ "${EXTENSION_INT_RELEASE}" != "7.1" ] && [ "${EXTENSION_INT_RELEASE}" != "7.2" ] && [ "${EXTENSION_INT_RELEASE}" != "7.3" ] && [ "${EXTENSION_INT_RELEASE}" != "7.4" ] && [ "${EXTENSION_INT_RELEASE}" != "8.0" ]; then
 				echo "extension=suhosin.so" >> ${EXTENSION_INT_EXT_INI}
 				if [ "${SUHOSIN_PHP_UPLOADSCAN_OPT}" = "yes" ] && [ -e /usr/local/bin/clamdscan ]; then
 					cp -f ${SUHOSIN_PHP_UPLOADSCAN_SCRIPT} ${SUHOSIN_UPLOADSCAN_FILENAME}
@@ -12174,7 +12118,7 @@ doExtensions_build() {
 				fi
 			fi
 
-			if [ "${HTSCANNER_OPT}" = "yes" ] && [ "${EXTENSION_INT_MODE}" != "mod_php" ] && [ "${EXTENSION_INT_MODE}" != "lsphp" ] && [ "${EXTENSION_INT_RELEASE}" != "8.0" ]  && [ "${EXTENSION_INT_RELEASE}" != "8.1" ]; then
+			if [ "${HTSCANNER_OPT}" = "yes" ] && [ "${EXTENSION_INT_MODE}" != "mod_php" ] && [ "${EXTENSION_INT_MODE}" != "lsphp" ] && [ "${EXTENSION_INT_RELEASE}" != "8.0" ]; then
 				if [ "${HAVE_CLI}" = "no" ]; then
 					#FreeBSD 10 fix
 					if [ -e ${EXTENSION_INT_EXT_DIR}/libhtscanner.so.0.0 ]; then
@@ -12187,16 +12131,8 @@ doExtensions_build() {
 				fi
 			fi
 
-			if [ "${PHP_IGBINARY_OPT}" = "yes" ]; then
-				if [ "${EXTENSION_INT_RELEASE}" != "5.3" ] && [ "${EXTENSION_INT_RELEASE}" != "5.4" ] && [ "${EXTENSION_INT_RELEASE}" != "5.5" ] && [ "${EXTENSION_INT_RELEASE}" != "5.6" ]; then
-					echo "extension=igbinary.so" >> ${EXTENSION_INT_EXT_INI}
-				else
-					echo "There is no igbinary available for PHP ${EXTENSION_INT_RELEASE}."
-				fi
-			fi
-
 			if [ "${IONCUBE_OPT}" = "yes" ]; then
-				if [ "${EXTENSION_INT_RELEASE}" != "8.0" ] && [ "${EXTENSION_INT_RELEASE}" != "8.1" ]; then
+				if [ "${EXTENSION_INT_RELEASE}" != "8.0" ]; then
 					echo "zend_extension=/usr/local/lib/ioncube/ioncube_loader_${OS_EXT}_${EXTENSION_INT_RELEASE}.so" >> ${EXTENSION_INT_EXT_INI}
 					if [ "${EXTENSION_NAME}" = "ioncube" ] || [ "${EXTENSION_NAME}" = "all" ]; then
 						echo "ionCube loader ${IONCUBE_VER} is now installed for PHP ${EXTENSION_INT_RELEASE}."
@@ -12918,7 +12854,7 @@ doModHostingLimits() {
 			cmake CMakeLists.txt
 			make install
 			if [ ! -s /etc/httpd/conf/extra/modhostinglimits.conf ]; then
-				curl ${CURL_CONNECT_OPTIONS} -o /etc/httpd/conf/extra/modhostinglimits.conf https://repo.cloudlinux.com/cloudlinux/confs/modhostinglimits.conf
+				wget ${WGET_CONNECT_OPTIONS} -O /etc/httpd/conf/extra/modhostinglimits.conf https://repo.cloudlinux.com/cloudlinux/confs/modhostinglimits.conf
 				perl -pi -e 's#/etc/httpd/modules/mod_hostinglimits.so#/usr/lib/apache/mod_hostinglimits.so#' /etc/httpd/conf/extra/modhostinglimits.conf
 			fi
 			#Inserting mod_hostinglimits to apache config
@@ -13276,7 +13212,7 @@ doPhp_build() {
 
 	if [ -e /etc/debian_version ] && [ ! -e /usr/local/include/freetype2/ft2build.h ] && [ ! -s /usr/bin/freetype-config ]; then
 		if [ "${OS_DEBIAN_VER}" != "7" ] && [ "${OS_DEBIAN_VER}" != "8" ] && [ "${OS_DEBIAN_VER}" != "9" ]; then
-			curl ${CURL_CONNECT_OPTIONS} -o /usr/bin/freetype-config ${WEBPATH}/freetype-config
+			wget ${WGET_CONNECT_OPTIONS} -O /usr/bin/freetype-config ${WEBPATH}/freetype-config
 			chmod +x /usr/bin/freetype-config
 		fi
 	fi
@@ -13368,7 +13304,7 @@ doPhp_build() {
 	fi
 	if [ -e /etc/debian_version ] && [ ! -d /usr/local/icu ]; then
 		if [ "${OS_DEBIAN_VER}" != "7" ] && [ "${OS_DEBIAN_VER}" != "8" ] && [ "${OS_DEBIAN_VER}" != "9" ]; then
-			curl ${CURL_CONNECT_OPTIONS} -o /usr/bin/icu-config ${WEBPATH}/icu-config
+			wget ${WGET_CONNECT_OPTIONS} -O /usr/bin/icu-config ${WEBPATH}/icu-config
 			chmod +x /usr/bin/icu-config
 		fi
 	fi
@@ -13492,7 +13428,7 @@ doPhp_build() {
 
 	if [ "${HAVE_FPM_CGI}" = "yes" ]; then
 		if [ ! -s /etc/logrotate.d/php-fpm ] && [ ${OS} != "FreeBSD" ]; then
-			curl ${CURL_CONNECT_OPTIONS} ${WEBPATH}/php-fpm.logrotate -o /etc/logrotate.d/php-fpm
+			wget ${WGET_CONNECT_OPTIONS} ${WEBPATH}/php-fpm.logrotate -O /etc/logrotate.d/php-fpm
 		fi
 		#We need USR1 to re-read the logs
 		#if grep -m1 -q USR1 /etc/logrotate.d/php-fpm; then
@@ -13581,18 +13517,6 @@ doPhp_build() {
 		fi
 	fi
 
-	if [ "${INT_RELEASE}" = "7.1" ] || [ "${INT_RELEASE}" = "7.2" ]; then
-		getFile patches/fpm_scoreboard_proc_oob_fix_v4.patch fpm_scoreboard_proc_oob_fix_v4.patch
-	fi
-
-	if [ "${INT_RELEASE}" = "7.0" ]; then
-		getFile patches/fpm_scoreboard_proc_oob_fix_v4_7.0.patch fpm_scoreboard_proc_oob_fix_v4_7.0.patch
-	fi
-
-	if [ "${INT_RELEASE}" = "5.6" ]; then
-		getFile patches/fpm_scoreboard_proc_oob_fix_v4_5.6.patch fpm_scoreboard_proc_oob_fix_v4_5.6.patch
-	fi
-
 	if [ "${INT_RELEASE}" = "7.3" ]; then
 		getFile patches/php_mysqlnd_sha2_auth.patch php_mysqlnd_sha2_auth.patch
 	fi
@@ -13635,17 +13559,14 @@ doPhp_build() {
 	fi
 
 	perl -pi -e 's|\(\(_libiconv_version >> 8\) & 0x0f\), \(_libiconv_version & 0x0f\)\)|_libiconv_version >> 8, _libiconv_version & 0xff\)|' ext/iconv/iconv.c
-	perl -pi -e 's|"html_errors=0\\n"|"html_errors=0\\n"\n\t"disable_functions=\\n"|g' ./sapi/cli/php_cli.c
+
 	if [ "${INT_MODE}" = "lsphp" ] && [ "${WEBSERVER_OPT}" != "apache" ] && [ "${WEBSERVER_OPT}" != "nginx_apache" ]; then
 		PHP_LSAPI_VER="`curl -k -L --silent --fail https://update.litespeedtech.com/ws/latest.php | grep 'PHP-LSAPI' | cut -d= -f2`"
 		# If we were unable to get the version from external source - set some default one
 		if ! echo "${PHP_LSAPI_VER}" | grep -m1 -q '^[0-9]*\.[0-9]*'; then
-			PHP_LSAPI_VER=8.0
-		elif [ "${PHP_LSAPI_VER}" = "7.9" ]; then
-			#PHP 8.1 is not compatible with 7.9, and 8.0 is not yet in latest.php on update.litespeedtech.com
-			PHP_LSAPI_VER=8.0
+			PHP_LSAPI_VER=7.4
 		fi
-		curl ${CURL_CONNECT_OPTIONS} https://www.litespeedtech.com/packages/lsapi/php-litespeed-${PHP_LSAPI_VER}.tgz -o php-litespeed-${PHP_LSAPI_VER}.tgz 2> /dev/null
+		wget ${WGET_CONNECT_OPTIONS} ${WGET_HTTPS_OPTIONS} https://www.litespeedtech.com/packages/lsapi/php-litespeed-${PHP_LSAPI_VER}.tgz -O php-litespeed-${PHP_LSAPI_VER}.tgz 2> /dev/null
 		cd sapi
 		mv litespeed litespeed_orig
 		tar xzf ../php-litespeed-${PHP_LSAPI_VER}.tgz --no-same-owner
@@ -13663,7 +13584,7 @@ doPhp_build() {
 	#	sed -i.old '1s;^;LDFLAGS += -lpthread\n;' litespeed/Makefile.frag
 		cd ../
 	elif [ "${INT_MODE}" = "lsphp" ] && [ "${CLOUDLINUX_OPT}" = "yes" ]; then
-		curl ${CURL_CONNECT_OPTIONS} -o php-litespeed-${CL_PHP_LSAPI_VER}.tgz https://repo.cloudlinux.com/cloudlinux/sources/da/php-litespeed-${CL_PHP_LSAPI_VER}.tgz
+		wget ${WGET_CONNECT_OPTIONS} ${WGET_HTTPS_OPTIONS} https://repo.cloudlinux.com/cloudlinux/sources/da/php-litespeed-${CL_PHP_LSAPI_VER}.tgz
 		cd sapi
 		mv litespeed litespeed_orig
 		tar xzf ../php-litespeed-${CL_PHP_LSAPI_VER}.tgz --no-same-owner
@@ -13728,39 +13649,24 @@ doPhp_build() {
 			${AUTOCONF213}
 		fi
 	fi
-
-	if [ "${INT_RELEASE}" = "7.1" ] || [ "${INT_RELEASE}" = "7.2" ]; then
-		patch -p1 --fuzz=1 < ../patches/fpm_scoreboard_proc_oob_fix_v4.patch
-		perl -pi -e 's|php_info_print_table_row\(2, "Configuration File \(php.ini\) Path"|php_info_print_table_row(2, "PHP-FPM security patch", "yes");\n\t\tphp_info_print_table_row(2, "Configuration File (php.ini) Path"|g' ./ext/standard/info.c
-	fi
-
-	if [ "${INT_RELEASE}" = "7.0" ]; then
-		patch -p1 --fuzz=1 < ../patches/fpm_scoreboard_proc_oob_fix_v4_7.0.patch
-		perl -pi -e 's|php_info_print_table_row\(2, "Configuration File \(php.ini\) Path"|php_info_print_table_row(2, "PHP-FPM security patch", "yes");\n\t\tphp_info_print_table_row(2, "Configuration File (php.ini) Path"|g' ./ext/standard/info.c
-	fi
-
-	if [ "${INT_RELEASE}" = "5.6" ]; then
-		patch -p1 --fuzz=1 < ../patches/fpm_scoreboard_proc_oob_fix_v4_5.6.patch
-		perl -pi -e 's|php_info_print_table_row\(2, "Configuration File \(php.ini\) Path"|php_info_print_table_row(2, "PHP-FPM security patch", "yes");\n\t\tphp_info_print_table_row(2, "Configuration File (php.ini) Path"|g' ./ext/standard/info.c
-	fi
-
+        
 	if [ "${CLOUDLINUX_OPT}" = "yes" ]; then
 		if [ -e ../fpm-lve-php${INT_RELEASE}_autoconf.patch ]; then
 			patch -p1 --fuzz=1 < ../fpm-lve-php${INT_RELEASE}_autoconf.patch
-		elif [ -e ../fpm-lve-php7.0_autoconf.dl.v2.patch.patch ] && [ "${INT_RELEASE}" = "7.0" ]; then
-			patch -p1 --fuzz=1 < ../fpm-lve-php7.0_autoconf.dl.v2.patch.patch
+		elif [ "${INT_RELEASE}" = "5.3" ] || [ "${INT_RELEASE}" = "5.4" ] || [ "${INT_RELEASE}" = "5.5" ] || [ "${INT_RELEASE}" = "5.6" ] || [ "${INT_RELEASE}" = "7.0" ]; then
+			if [ -e ../fpm-lve-php7.0_autoconf.dl.v2.patch.patch ]; then
+				patch -p1 --fuzz=1 < ../fpm-lve-php7.0_autoconf.dl.v2.patch.patch
+			fi
 		elif [ -e ../php-fpm.7.1.dl.v3.patch ] && [ "${INT_RELEASE}" = "7.1" ]; then
 			patch -p1 --fuzz=1 < ../php-fpm.7.1.dl.v3.patch
 		elif [ -e ../php-fpm.7.2.dl.v2.patch ] && [ "${INT_RELEASE}" = "7.2" ]; then
 			patch -p1 --fuzz=1 < ../php-fpm.7.2.dl.v2.patch
-		elif [ -e ../php-fpm.7.3.dl.v1.patch ] && [ "${INT_RELEASE}" = "7.3" ]; then
-			patch -p1 --fuzz=1 < ../php-fpm.7.3.dl.v1.patch
+		elif [ -e ../fpm.7.3.dl.v1.patch ] && [ "${INT_RELEASE}" = "7.3" ]; then
+			patch -p1 --fuzz=1 < ../fpm.7.3.dl.v1.patch
 		elif [ -e ../php-fpm.7.4.dl.v1.patch ] && [ "${INT_RELEASE}" = "7.4" ]; then
 			patch -p1 --fuzz=1 < ../php-fpm.7.4.dl.v1.patch
 		elif [ -e php-fpm.8.0.dl.v1.patch ]; then
 			patch -p1 --fuzz=1 < ../php-fpm.8.0.dl.v1.patch
-		elif [ -e php-fpm.8.1.dl.v1.patch ]; then
-			patch -p1 --fuzz=1 < ../php-fpm.8.1.dl.v1.patch
 		fi
 		if [ "${INT_RELEASE}" = "5.3" ] && [ -e ${AUTOCONF213} ]; then
 			touch ac*
@@ -14337,11 +14243,6 @@ doPhp_build() {
 			doSnuffleupagus ${INT_RELEASE} ${INT_MODE} 1
 		fi
 	fi
-	if [ "${PHP_IGBINARY_OPT}" = "yes" ]; then
-		if [ "${EXTENSION_INT_RELEASE}" != "5.3" ] && [ "${EXTENSION_INT_RELEASE}" != "5.4" ] && [ "${EXTENSION_INT_RELEASE}" != "5.5" ] && [ "${EXTENSION_INT_RELEASE}" != "5.6" ]; then
-			doIgbinary ${INT_RELEASE} ${INT_MODE} 1
-		fi
-	fi
 	if [ "${PHP_REDIS_OPT}" = "yes" ]; then
 		if [ "${EXTENSION_INT_RELEASE}" != "5.3" ] && [ "${EXTENSION_INT_RELEASE}" != "5.4" ] && [ "${EXTENSION_INT_RELEASE}" != "5.5" ] && [ "${EXTENSION_INT_RELEASE}" != "5.6" ]; then
 			doPHPRedis ${INT_RELEASE} ${INT_MODE} 1
@@ -14362,7 +14263,7 @@ doPhp_build() {
 	if [ "${PHP_BZ2_OPT}" = "yes" ]; then
 		doPHPBz2 ${INT_RELEASE} ${INT_MODE} 1
 	fi
-	if [ "${INT_MODE}" != "mod_php" ] && [ "${INT_RELEASE}" != "8.0" ] && [ "${INT_RELEASE}" != "8.1" ]; then
+	if [ "${INT_MODE}" != "mod_php" ] && [ "${INT_RELEASE}" != "8.0" ]; then
 		if [ "${HTSCANNER_OPT}" = "yes" ]; then
 			doPHPHtscanner ${INT_RELEASE} 1
 		fi
@@ -14377,7 +14278,7 @@ doPhp_build() {
 	fi
 
 	if [ "${SUHOSIN_OPT}" = "yes" ]; then
-		if [ "${INT_RELEASE}" != "5.3" ] && [ "${INT_RELEASE}" != "7.0" ] && [ "${INT_RELEASE}" != "7.1" ] && [ "${INT_RELEASE}" != "7.2" ] && [ "${INT_RELEASE}" != "7.3" ] && [ "${INT_RELEASE}" != "7.4" ] && [ "${INT_RELEASE}" != "8.0" ]  && [ "${INT_RELEASE}" != "8.1" ]; then
+		if [ "${INT_RELEASE}" != "5.3" ] && [ "${INT_RELEASE}" != "7.0" ] && [ "${INT_RELEASE}" != "7.1" ] && [ "${INT_RELEASE}" != "7.2" ] && [ "${INT_RELEASE}" != "7.3" ] && [ "${INT_RELEASE}" != "7.4" ]  && [ "${INT_RELEASE}" != "8.0" ]; then
 			doSuhosin ${INT_RELEASE} ${INT_MODE} 1
 		else
 			echo "This suhosin version does not support PHP ${INT_RELEASE}."
@@ -15069,11 +14970,11 @@ ensure_server_ca() {
 
 	if [ ! -s ${SSL_CA} ]; then
 		echo "Downloading new generic server.ca ..."
-		curl ${CURL_CONNECT_OPTIONS} -o ${SSL_CA} ${WEBPATH_SERVICES}/all/ssl/server.ca
+		wget ${WGET_CONNECT_OPTIONS} -O ${SSL_CA} ${WEBPATH_SERVICES}/all/ssl/server.ca
 
 		if [ ! -s ${SSL_CA} ]; then
 			echo "Trying server.ca from backup services url..."
-			curl ${CURL_CONNECT_OPTIONS} -o ${SSL_CA} ${WEBPATH_SERVICES_BACKUP}/all/ssl/server.ca
+			wget ${WGET_CONNECT_OPTIONS} -O ${SSL_CA} ${WEBPATH_SERVICES_BACKUP}/all/ssl/server.ca
 
 			if [ ! -s ${SSL_CA} ]; then
 				echo "server.ca download failed."
@@ -15086,14 +14987,6 @@ ensure_server_ca() {
 		fi
 	fi
 
-	if [ "${WEBSERVER_OPT}" = "apache" ]; then
-		if [ -s ${SSL_CRT} ] && [ -s ${SSL_CA} ]; then
-			cat ${SSL_CRT} > ${SSL_CRT}.combined
-			#Sometimes we don't have a new line in SSL_CRT, so we add one to separate SSL_CRT and SSL_CA
-			echo >> ${SSL_CRT}.combined
-			cat ${SSL_CA} >> ${SSL_CRT}.combined
-		fi
-	fi
 	if [ "${WEBSERVER_OPT}" = "nginx_apache" ]; then
 		if [ -s ${SSL_CRT} ] && [ -s ${SSL_CA} ]; then
 			cat ${SSL_CRT} > ${SSL_CRT}.combined
@@ -15373,8 +15266,10 @@ tokenize_IP() {
 				IP_CF=/usr/local/directadmin/data/admin/ips/${IP}
 				if [ -s ${IP_CF} ] && [ -s ${DACONF_FILE} ]; then
 					if [ "`grep -m1 -c '^linked_ips=' ${IP_CF}`" -gt "0" ]; then
-						#2 will tokenize the httpd-vhosts.conf
-						/usr/local/directadmin/dataskq --linked-ips=2
+						if [ "`/usr/local/directadmin/dataskq h | grep -c '\-\-linked-ips'`" -gt "0" ]; then
+							#2 will tokenize the httpd-vhosts.conf
+							/usr/local/directadmin/dataskq --linked-ips=2
+						fi
 					fi
 				fi
 
@@ -15404,8 +15299,10 @@ tokenize_IP() {
 				IP_CF=/usr/local/directadmin/data/admin/ips/${IP}
 				if [ -s ${IP_CF} ] && [ -s ${DACONF_FILE} ]; then
 					if [ "`grep -m1 -c '^linked_ips=' ${IP_CF}`" -gt "0" ]; then
-						#4 will tokenize the httpd-vhosts.conf
-						/usr/local/directadmin/dataskq --linked-ips=4
+						if [ "`/usr/local/directadmin/dataskq h | grep -c '\-\-linked-ips'`" -gt "0" ]; then
+							#4 will tokenize the httpd-vhosts.conf
+							/usr/local/directadmin/dataskq --linked-ips=4
+						fi
 					fi
 				fi
 
@@ -15439,8 +15336,10 @@ tokenize_IP() {
 				IP_CF=/usr/local/directadmin/data/admin/ips/${IP}
 				if [ -s ${IP_CF} ] && [ -s ${DACONF_FILE} ]; then
 					if [ "`grep -m1 -c '^linked_ips=' ${IP_CF}`" -gt "0" ]; then
-						#3 will tokenize the nginx-vhosts.conf
-						/usr/local/directadmin/dataskq --linked-ips=3
+						if [ "`/usr/local/directadmin/dataskq h | grep -c '\-\-linked-ips'`" -gt "0" ]; then
+							#3 will tokenize the nginx-vhosts.conf
+							/usr/local/directadmin/dataskq --linked-ips=3
+						fi
 					fi
 				fi
 
@@ -16187,7 +16086,7 @@ doRedis() {
 	fi
 
 	if [ ! -e /etc/logrotate.d/redis ] && [ "${OS}" != "FreeBSD" ]; then
-		curl ${CURL_CONNECT_OPTIONS} ${WEBPATH}/redis.logrotate -o /etc/logrotate.d/redis
+		wget ${WGET_CONNECT_OPTIONS} ${WEBPATH}/redis.logrotate -O /etc/logrotate.d/redis
 	fi
 
 	if [ "${OS}" != "FreBSD" ]; then
@@ -16276,9 +16175,18 @@ installIMagick() {
 	if [ -z $1 ] || [ "$1" = "no" ] || [ ! -x /usr/local/php$1/bin/phpize ]; then
 		return
 	fi
-	getFile imagick/imagick-${IMAGICK_VER}.tgz imagick imagick-${IMAGICK_VER}.tgz
+	if [ "$1" = "80" ] && [ "${IMAGICK_VER}" = "3.4.4" ]; then
+		IMAGICK_VER=3.4.4-patched-php8
+		getFile imagick/imagick-${IMAGICK_VER}.tgz imagick_php8 imagick-${IMAGICK_VER}.tgz
+	elif [ "${IMAGICK_VER}" = "3.4.4-patched-php8" ]; then
+		IMAGICK_VER=3.4.4
+		getFile imagick/imagick-${IMAGICK_VER}.tgz imagick imagick-${IMAGICK_VER}.tgz
+	else
+		getFile imagick/imagick-${IMAGICK_VER}.tgz imagick imagick-${IMAGICK_VER}.tgz
+	fi
 	echo "Installing imagick-${IMAGICK_VER} PHP extension for PHP $1..."
 
+	
 	FILE=${CWD}/imagick-${IMAGICK_VER}.tgz
 	checkFile ${FILE}
 	echo "Extracting ${FILE}..."
@@ -16438,7 +16346,7 @@ installGeneralExt() {
 	PHP_EXT_NAME=$1
 	PHP_EXT_VER=$2
 
-	if [ "${PHP_EXT_NAME}" = "snuffleupagus" ] || [ "${PHP_EXT_NAME}" = "igbinary" ]; then
+	if [ "${PHP_EXT_NAME}" = "snuffleupagus" ]; then
 		FILE_EXT="tar.gz"
 	else
 		FILE_EXT="tgz"
@@ -16447,7 +16355,7 @@ installGeneralExt() {
 		if [ "${3}" = "53" ] || [ "${3}" = "54" ] || [ "${3}" = "55" ] || [ "${3}" = "56" ] || [ "${3}" = "70" ] || [ "${3}" = "71" ]; then
 			return
 		fi
-	elif [ "${PHP_EXT_NAME}" = "snuffleupagus" ] || [ "${PHP_EXT_NAME}" = "igbinary" ]; then
+	elif [ "${PHP_EXT_NAME}" = "snuffleupagus" ]; then
 		if [ "${3}" = "53" ] || [ "${3}" = "54" ] || [ "${3}" = "55" ] || [ "${3}" = "56" ]; then
 			return
 		fi
@@ -16476,16 +16384,10 @@ installGeneralExt() {
 	fi
 
 	/usr/local/php$3/bin/phpize
-	APPEND_CONFIG_FLAG=""
-	if [ "${PHP_EXT_NAME}" = "redis" ]; then
-		if /usr/local/php$3/bin/php$3 -i | grep -m1 'igbinary version' | tail -n1 | grep -m1 -q -o '[0-9.]*' 2>/dev/null; then
-			APPEND_CONFIG_FLAG=" --enable-redis-igbinary"
-		fi
-	fi
 	if [ "${OS}" = "FreeBSD" ]; then
-		CFLAGS="-I/usr/local/include" LDFLAGS="-L/usr/local/lib" ./configure --with-php-config=/usr/local/php$3/bin/php-config${APPEND_CONFIG_FLAG}
+		CFLAGS="-I/usr/local/include" LDFLAGS="-L/usr/local/lib" ./configure --with-php-config=/usr/local/php$3/bin/php-config
 	else
-		./configure --with-php-config=/usr/local/php$3/bin/php-config${APPEND_CONFIG_FLAG}
+		./configure --with-php-config=/usr/local/php$3/bin/php-config
 	fi
 	while echo "Trying to make ${PHP_EXT_NAME}-${PHP_EXT_VER} PHP extension..."; do
 		make
@@ -16682,60 +16584,6 @@ doPHPRedis() {
 	cd ${CWD}
 }
 
-doIgbinary() {
-	cd ${CWD}
-	INSTALL_EXT_NAME=igbinary
-	INSTALL_EXT_VER=${IGBINARY_VER}
-	if [ "${PHP_IGBINARY_OPT}" = "no" ]; then
-		do_exit 1 "Cannot build ${INSTALL_EXT_NAME}, because you do not have it set in php_extensions.conf file."
-	fi
-	FOR_ALL="no"
-	if [ -z $1 ] || [ $1 = "d" ] || [ -z $2 ]; then
-		FOR_ALL="yes"
-	fi
-
-	if [ "${FOR_ALL}" = "no" ]; then
-		GENERAL_EXT_INT_SHORTRELEASE="`echo $1 | tr -d '.'`"
-		GENERAL_EXT_INT_VER_VAR=PHP${GENERAL_EXT_INT_SHORTRELEASE}_VER
-		GENERAL_EXT_INT_VER=$(eval_var ${GENERAL_EXT_INT_VER_VAR})
-	fi
-
-	SKIP_RESTART=1
-	if [ "$3" != "1" ]; then
-		SKIP_RESTART=0
-	fi
-
-	UNSUPPORTED_VERSIONS="53 54 55 56"
-	if [ "${FOR_ALL}" = "no" ]; then
-		if ! echo "${UNSUPPORTED_VERSIONS}" | grep -m1 -q "${GENERAL_EXT_INT_SHORTRELEASE}"; then
-			installGeneralExt ${INSTALL_EXT_NAME} ${INSTALL_EXT_VER} ${GENERAL_EXT_INT_SHORTRELEASE} $2
-		fi
-	else
-		if ! echo "${UNSUPPORTED_VERSIONS}" | grep -m1 -q "${PHP1_SHORTRELEASE}"; then
-			installGeneralExt ${INSTALL_EXT_NAME} ${INSTALL_EXT_VER} ${PHP1_SHORTRELEASE} ${PHP1_MODE_OPT}
-		fi
-		if ! echo "${UNSUPPORTED_VERSIONS}" | grep -m1 -q "${PHP2_SHORTRELEASE}"; then
-			installGeneralExt ${INSTALL_EXT_NAME} ${INSTALL_EXT_VER} ${PHP2_SHORTRELEASE} ${PHP2_MODE_OPT}
-		fi
-		if ! echo "${UNSUPPORTED_VERSIONS}" | grep -m1 -q "${PHP3_SHORTRELEASE}"; then
-			installGeneralExt ${INSTALL_EXT_NAME} ${INSTALL_EXT_VER} ${PHP3_SHORTRELEASE} ${PHP3_MODE_OPT}
-		fi
-		if ! echo "${UNSUPPORTED_VERSIONS}" | grep -m1 -q "${PHP4_SHORTRELEASE}"; then
-			installGeneralExt ${INSTALL_EXT_NAME} ${INSTALL_EXT_VER} ${PHP4_SHORTRELEASE} ${PHP4_MODE_OPT}
-		fi
-	fi
-
-	if [ "${FOR_ALL}" = "yes" ]; then
-		doExtensions ${SKIP_RESTART} ${INSTALL_EXT_NAME} 
-	else
-		doExtensions_build ${GENERAL_EXT_INT_SHORTRELEASE} "${4}" ${INSTALL_EXT_NAME} 
-	fi
-	echo "${INSTALL_EXT_NAME} ${INSTALL_EXT_VER} PHP extension has been installed successfully."
-	writeLog "${INSTALL_EXT_NAME} ${INSTALL_EXT_VER} installed"
-
-	cd ${CWD}
-}
-
 doSnuffleupagus() {
 	cd ${CWD}
 	INSTALL_EXT_NAME=snuffleupagus
@@ -16817,7 +16665,7 @@ doImap() {
 	fi
 
 	UW_PATCH=1006_openssl1.1_autoverify.patch
-	curl ${CURL_CONNECT_OPTIONS} -o ${UW_PATCH} ${DOWNLOADSERVER_OPT}/services/custombuild/patches/${UW_PATCH}
+	wget -O ${UW_PATCH} ${DOWNLOADSERVER_OPT}/services/custombuild/patches/${UW_PATCH}
 	if [ -s ${UW_PATCH} ]; then
 		patch -p1 < ${UW_PATCH}
 	fi
@@ -17246,8 +17094,6 @@ doExtensionsSetup() {
 				doPHPLDAP
 			elif [ "${setting}" = "PHALCON" ]; then
 				doPhalcon
-			elif [ "${setting}" = "IGBINARY" ]; then
-				doIgbinary
 			elif [ "${setting}" = "IMAGICK" ]; then
 				doIMagick
 			elif [ "${setting}" = "IONCUBE" ]; then
@@ -17496,502 +17342,6 @@ doComposer() {
 
 ####################################################
 
-doMajordomo() {
-	cd ${WORKDIR}
-
-	SOURCEPATH="${WORKDIR}/majordomo-1.94.5"
-
-	mkdir -p "${SOURCEPATH}"
-	curl ${CURL_CONNECT_OPTIONS} -o ${WORKDIR}/majordomo-1.94.5-patched.tar.gz http://files.directadmin.com/services/all/majordomo-1.94.5-patched.tar.gz
-
-	tar xzf majordomo-1.94.5-patched.tar.gz
-	if [ ! -e ${SOURCEPATH}/Makefile ]; then
-		do_exit 1 "The source path for majordomo does not exist.  Make sure the correct path is set in majordomo.sh"
-	fi
-
-	mkdir -p /etc/virtual/majordomo
-
-	MDGID=`id -g daemon`
-
-	if [ -e /etc/debian_version ]; then
-		/usr/sbin/groupadd nobody 2>/dev/null
-		/usr/sbin/useradd -d /etc/virtual/majordomo -g $MDGID -s /bin/false majordomo 2> /dev/null
-	elif [ "$OS" = "FreeBSD" ]; then
-		/usr/sbin/pw useradd majordomo -b /etc/virtual/majordomo -g daemon -s /sbin/nologin 2> /dev/null
-	else
-		/usr/sbin/useradd -d /etc/virtual/majordomo -g $MDGID majordomo -s /bin/false -n -r 2> /dev/null
-	fi
-
-	addToAccess majordomo
-	addToAccess nobody
-	MDUID=`id -u majordomo`
-
-	perl -pi -e "s/PERL = .*/PERL = \/usr\/bin\/perl/" ${SOURCEPATH}/Makefile
-	perl -pi -e "s/W_HOME = .*/W_HOME = \/etc\/virtual\/majordomo/" ${SOURCEPATH}/Makefile
-
-	#Perl and Bash weren't getting along. MDUID wasn't showing up so I did it this way.
-	perl -pi -e "s/W_USER = .*/W_USER = ${MDUID}/" ${SOURCEPATH}/Makefile
-	perl -pi -e "s/W_GROUP = .*/W_GROUP = ${MDGID}/" ${SOURCEPATH}/Makefile
-	perl -pi -e "s/TMPDIR = .*/TMPDIR = \/tmp/" ${SOURCEPATH}/Makefile
-
-	#fix REALLY-TO value in digests file
-	perl -pi -e "s/\$ARGV\[0\];/\$ARGV\[0\].\${whereami};/" ${SOURCEPATH}/digest
-	perl -pi -e "s#/usr/test/majordomo#/etc/virtual/majordomo#" ${SOURCEPATH}/sample.cf
-
-	cd "${SOURCEPATH}"
-
-	make wrapper
-	make install
-	make install-wrapper
-
-	perl -pi -e 's#/usr/test/majordomo#/etc/virtual/majordomo#' /etc/virtual/majordomo/majordomo.cf
-
-	PATCH1=majordomo.patch
-	PATCH1_PATH=/etc/virtual/majordomo/${PATCH1}
-	if [ ! -s "${PATCH1_PATH}" ]; then
-		curl ${CURL_CONNECT_OPTIONS} -o ${PATCH1_PATH} ${DOWNLOADSERVER_SCHEME}://${DOWNLOADSERVER_OPT}/services/all/majordomo/${PATCH1}
-	fi
-
-	if [ -s "${PATCH1_PATH}" ]; then
-		cd /etc/virtual/majordomo
-		patch -fp0 < majordomo.patch
-	else
-		echo "Cannot find ${PATCH1_PATH} to patch majordomo.";
-	fi
-
-	#just to put up back where we were.. likely not needed.
-	cd ${WORKDIR}
-	rm -f "${WORKDIR}/majordomo-1.94.5-patched.tar.gz"
-	rm -rf "${SOURCEPATH}"
-
-	chmod 750 /etc/virtual/majordomo
-}
-
-####################################################
-
-doSysbk() {
-	echo "Installing sysbk..."
-	cd ${WORKDIR}
-
-	curl ${CURL_CONNECT_OPTIONS} -o ${WORKDIR}/sysbk.tar.gz http://files.directadmin.com/services/sysbk.tar.gz
-
-	tar xzf sysbk.tar.gz -C /usr/local
-
-	#swap out linux files for freebsd file:
-	if [ "$OS" = "FreeBSD" ]; then
-		FILES=/usr/local/sysbk/mod/custom.files
-		perl -pi -e 's#/etc/shadow#/etc/master.passwd#' $FILES
-
-		DIRS=/usr/local/sysbk/mod/custom.dirs
-		perl -pi -e 's#/var/spool/mail#/var/mail#' $DIRS
-		perl -pi -e 's#/var/spool/cron#/var/cron#' $DIRS
-	fi
-	KEY=/root/.ssh/id_dsa
-	if [ ! -e $KEY ]; then
-		/usr/bin/ssh-keygen -t rsa -b 2048 -N '' -q -f $KEY
-	fi
-
-	cd ${WORKDIR}
-	rm -f "${WORKDIR}/sysbk.tar.gz"
-}
-
-####################################################
-
-doCSF() {
-	if [ "${CSF_OPT}" != "yes" ]; then
-		do_exit 1 "You cannot install CSF, because you do not have it set in options.conf file."
-	fi
-
-	if [ -e /etc/debian_version ]; then
-		if [ -x /usr/bin/dpkg-query ]; then
-			if [ `checkDebianPackage libwww-perl` -ne 0 ]; then
-				apt-get -y install libwww-perl
-			fi
-		fi
-	elif [ "${OS}" != "FreeBSD" ]; then
-		if [ -x /usr/bin/rpm ]; then
-			if [ `checkRPMPackage perl-libwww-perl` -ne 0 ]; then
-				yum -y install perl-libwww-perl
-			fi
-		fi
-	else
-		#FreeBSD case
-		return
-	fi
-	CSF_LOG=/var/log/directadmin/csf_install.log
-	CSF_CONF=/etc/csf/csf.conf
-	echo "Installing CSF..."
-	if [ ! -d /var/log/directadmin ]; then
-		mkdir -p /var/log/directadmin
-	fi
-	curl -L --progress-bar -o ${WORKDIR}/csf.tgz https://download.configserver.com/csf.tgz
-
-	tar xzf csf.tgz
-	if ! ${WORKDIR}/csf/csftest.pl | tail -n 1 | grep -q 'RESULT: csf should function on this server'; then
-		echo "CSF is missing some modules"
-		return
-	fi
-	cd ${WORKDIR}/csf
-	bash ./install.sh >/dev/null 2>&1
-	if [ -s ${CSF_CONF} ]; then
-		USE_IPSET=true
-		if [ -x /usr/bin/systemd-detect-virt ]; then
-			if systemd-detect-virt | grep -m1 -q -E 'lxc|openvz'; then
-			    USE_IPSET=false
-			fi
-		fi
-		if ${USE_IPSET} && grep -m1 -q '^LF_IPSET = "0"' ${CSF_CONF}; then
-			perl -pi -e 's|^LF_IPSET = "0"|LF_IPSET = "1"|g' ${CSF_CONF}
-		fi
-
-		#Add FTP passive port range
-		if ! grep ^TCP_IN ${CSF_CONF} | grep -q '35000:'; then
-			perl -pi -e 's|^TCP_IN = "(.*)"$|TCP_IN = "$1,35000:35999"|' ${CSF_CONF}
-		fi
-		if ! grep ^TCP6_IN ${CSF_CONF} | grep -q '35000:'; then
-			perl -pi -e 's|^TCP6_IN = "(.*)"$|TCP6_IN = "$1,35000:35999"|' ${CSF_CONF}
-		fi
-		#Block SMTP by default, use RESTRICT_SYSLOG=3
-		perl -pi -e 's|^SMTP_BLOCK = "0"$|SMTP_BLOCK = "1"|' ${CSF_CONF}
-		perl -pi -e 's|^RESTRICT_SYSLOG = "0"$|RESTRICT_SYSLOG = "3"|' ${CSF_CONF}
-	
-		#Disable testing mode in CSF
-		perl -pi -e 's/^TESTING = "1"/TESTING = "0"/' ${CSF_CONF}
-
-		#Allow all TCP/UDP outbound connections from root
-		if [ -e /etc/csf/csf.allow ] && [ -x /usr/sbin/csf ]; then
-			if ! grep -q 'out|u=0' /etc/csf/csf.allow; then
-				csf -a "tcp|out|u=0" "Added by DirectAdmin"
-				csf -a "udp|out|u=0" "Added by DirectAdmin"
-			fi
-		fi
-		csf -r >> /dev/null 2>&1
-	fi
-	echo "CSF installation has finished."
-	cd ${WORKDIR}
-	rm -f "${WORKDIR}/csf.tar.gz"
-	rm -rf "${WORKDIR}/csf"
-}
-
-####################################################
-
-doNamedConf() {
-	if [ -e /etc/sysconfig/named ]; then
-		/usr/bin/perl -pi -e 's/^ROOTDIR=.*/ROOTDIR=/' /etc/sysconfig/named
-	fi
-
-	SERVICE_NAME=named
-	if [ -s ${DACONF_FILE} ] && [ -x ${DA_BIN} ]; then
-		NAMED_CONF=`${DA_BIN} c | grep ^namedconfig= | cut -d= -f2`
-		NAMED_OVERRIDE=`${DA_BIN} c | grep ^named_service_override= | cut -d= -f2`
-		if [ "${NAMED_OVERRIDE}" != "" ]; then
-			SERVICE_NAME=${NAMED_OVERRIDE}
-		fi
-	fi
-
-	if [ ! -s $NAMED_CONF ]; then
-		echo "Cannot find $NAMED_CONF to check";
-		return
-	fi
-
-	NAMED_OPTIONS_CONF=$NAMED_CONF
-	HAVE_OPTIONS_AREA=`grep -c '^options {' ${NAMED_OPTIONS_CONF}`
-
-	for i in `grep -E '^[[:space:]]*include ' ${NAMED_CONF} | cut -d\" -f2`; do
-	{
-		if [ "$i" = "" ] || [ ! -s "$i" ]; then
-			continue;
-		fi
-		
-		if grep -m1 -q allow-transfer ${i}; then
-			#echo "Skipping allow-transfer chcek on ${i}. allow-transfer already present.";
-			return	
-		fi	
-
-		if [ "${HAVE_OPTIONS_AREA}" -eq 0 ]; then
-			HAVE_OPTIONS_AREA=`grep -c '^options {' $i`
-			if [ "${HAVE_OPTIONS_AREA}" -eq 0 ]; then
-				continue;
-			fi
-			NAMED_OPTIONS_CONF=$i
-		fi
-	};
-	done;
-
-	if [ "${HAVE_OPTIONS_AREA}" -eq 0 ]; then
-		echo "Could not find options section in the $NAMED_CONF or any of it's include files";
-		return
-	fi
-
-	if ! grep -m1 -q allow-transfer ${NAMED_OPTIONS_CONF}; then
-		perl -pi -e 's|options \{|options \{\n\tallow-transfer \{ none; \};|g' ${NAMED_OPTIONS_CONF}
-		echo "Added 'allow-transfer { none; };' to ${NAMED_OPTIONS_CONF}"
-		echo "action=${SERVICE_NAME}&value=reload" >> /usr/local/directadmin/data/task.queue
-	fi
-	if grep -m1 -q 'listen-on[[:space:]]*port[[:space:]]*53[[:space:]]*{[[:space:]]*127.0.0.1;[[:space:]]*};' ${NAMED_OPTIONS_CONF}; then
-		perl -pi -e 's|listen-on[[:space:]]*port[[:space:]]*53[[:space:]]*{[[:space:]]*127.0.0.1;[[:space:]]*};|listen-on port 53 { any; };|g' ${NAMED_OPTIONS_CONF}
-		echo "action=${SERVICE_NAME}&value=reload" >> /usr/local/directadmin/data/task.queue
-	fi
-	if grep -m1 -q 'recursion[[:space:]]*yes;' ${NAMED_OPTIONS_CONF}; then
-		perl -pi -e 's|recursion[[:space:]]*yes;|recursion no;|g' ${NAMED_OPTIONS_CONF}
-		echo "action=${SERVICE_NAME}&value=reload" >> /usr/local/directadmin/data/task.queue
-	fi
-	if grep -m1 -q 'listen-on-v6[[:space:]]*port[[:space:]]*53[[:space:]]*{[[:space:]]*::1;[[:space:]]*};' ${NAMED_OPTIONS_CONF}; then
-		perl -pi -e 's|listen-on-v6[[:space:]]*port[[:space:]]*53[[:space:]]*{[[:space:]]*::1;[[:space:]]*};|listen-on-v6 port 53 { any; };|g' ${NAMED_OPTIONS_CONF}
-		echo "action=${SERVICE_NAME}&value=reload" >> /usr/local/directadmin/data/task.queue
-	fi
-	if grep -m1 -q 'allow-query[[:space:]]*{[[:space:]]*localhost;[[:space:]]*};' ${NAMED_OPTIONS_CONF}; then
-		perl -pi -e 's|allow-query[[:space:]]*{[[:space:]]*localhost;[[:space:]]*};|allow-query     { any; };|g' ${NAMED_OPTIONS_CONF}
-		echo "action=${SERVICE_NAME}&value=reload" >> /usr/local/directadmin/data/task.queue
-	fi
-}
-doBind() {
-	if [ -e /etc/debian_version ]; then
-		if [ -x /usr/bin/dpkg-query ]; then
-			if [ `checkDebianPackage bind9` -ne 0 ]; then
-				apt-get -y install bind9
-			fi
-		fi
-	elif [ "${OS}" = "FreeBSD" ]; then
-		pkg install -y bind911
-	else
-		if [ -x /usr/bin/rpm ]; then
-			if [ `checkRPMPackage bind` -ne 0 ] || [ `checkRPMPackage bind-libs` -ne 0 ] || [ `checkRPMPackage bind-utils` -ne 0 ]; then
-				yum -y install bind bind-libs bind-utils
-			fi
-		fi
-	fi
-	if [ "$OS" != "FreeBSD" ] && [ ! -e ${DEBIAN_VERSION} ]; then
-		NAMED_CONF=/etc/named.conf
-        if [ ! -s "${NAMED_CONF}" ]; then
-                curl -L --progress-bar -o ${NAMED_CONF} ${WEBPATH_SERVICES}/all/named/named.conf
-        fi
-        if [ ! -s /var/named/named.ca ]; then
-                mkdir -p /var/named
-                chown named:named /var/named
-                curl -L --progress-bar -o /var/named/named.ca ${WEBPATH_SERVICES}/all/named/named.ca
-        fi
-        if [ ! -s /var/named/localhost.zone ]; then
-                curl -L --progress-bar -o /var/named/localhost.zone ${WEBPATH_SERVICES}/all/named/localhost.zone
-        fi
-        if [ ! -s /var/named/named.local ]; then
-                curl -L --progress-bar -o /var/named/named.local ${WEBPATH_SERVICES}/all/named/named.local
-        fi
-		if [ "${SYSTEMD}" = "yes" ]; then
-			if [ ! -s /usr/lib/systemd/system/named-setup-rndc.service ]; then
-				curl -L --progress-bar -o /usr/lib/systemd/system/named-setup-rndc.service ${WEBPATH_SERVICES}/custombuild/2.0/custombuild/configure/systemd/named-setup-rndc.service
-			fi
-			if [ ! -s /etc/systemd/system/named.service ]; then
-				if [ -s /usr/lib/systemd/system/named.service ]; then
-					mv /usr/lib/systemd/system/named.service /etc/systemd/system/named.service
-				else
-					curl -L --progress-bar -o /etc/systemd/system/named.service ${WEBPATH_SERVICES}/custombuild/2.0/custombuild/configure/systemd/named.service
-				fi
-				doNamedConf
-				systemctl daemon-reload
-				systemctl enable named.service
-				systemctl start named.service
-			fi
-		else
-			#for CentOS 6: http://help.directadmin.com/item.php?id=387
-			if [ -s /etc/named.conf ]; then
-					perl -pi -e 's/\sallow-query/\t\/\/allow-query/' /etc/named.conf
-					perl -pi -e 's/\slisten-on/\t\/\/listen-on/' /etc/named.conf
-					perl -pi -e 's/\srecursion yes/\t\/\/recursion yes/' /etc/named.conf
-			fi
-			mv -f /etc/init.d/named /etc/init.d/named.back
-			curl -L --progress-bar -o /etc/init.d/named http://www.directadmin.com/named
-			chmod 755 /etc/init.d/named
-			/sbin/chkconfig named reset
-		fi
-
-		RNDCKEY=/etc/rndc.key
-
-		if [ ! -s $RNDCKEY ]; then
-			echo "Generating new key: $RNDCKEY ...";
-
-			if [ -e /dev/urandom ]; then
-				/usr/sbin/rndc-confgen -a -r /dev/urandom
-			else
-				/usr/sbin/rndc-confgen -a
-			fi
-
-			if grep -q 'key "rndc-key"' $RNDCKEY; then
-				perl -pi -e 's/key "rndc-key"/key "rndckey"/' $RNDCKEY
-			fi
-
-			echo "Done generating new key"
-		fi
-
-		if [ ! -s $RNDCKEY ]; then
-			echo "rndc-confgen failed. Using template instead."
-
-			curl -L --progress-bar -o $RNDCKEY http://www.directadmin.com/rndc.key
-
-			if ! grep -q secret $RNDCKEY; then
-				SECRET=$(/usr/sbin/rndc-confgen | grep secret | head -n 1)
-				perl -pi -e 's#hmac-md5;#hmac-md5;\n\t$SECRET#' $RNDCKEY
-				echo "Template installed."
-			fi
-		fi
-
-		chown named:named ${RNDCKEY}
-	elif [ "$OS" = "FreeBSD" ]; then
-		if [ ! -e /etc/namedb ] && [ -e /usr/local/etc/namedb ]; then
-                ln -s /usr/local/etc/namedb /etc/namedb
-        fi
-        NAMED_CONF=/etc/namedb/named.conf
-        if [ ! -s "${NAMED_CONF}" ]; then
-                curl -L --progress-bar -o ${NAMED_CONF} ${WEBPATH_SERVICES}/all/named/named.conf.freebsd
-        fi
-		if [ ! -e /etc/namedb/rndc.key ]; then
-			rndc-confgen -a
-		fi
-		if grep -q listen /etc/namedb/named.conf; then
-			curl -L --progress-bar -o /etc/namedb/named.conf http://www.directadmin.com/named.conf.freebsd
-		fi
-	elif [ "${SYSTEMD}" = "yes" ]; then
-		NAMED_CONF=/etc/bind/named.conf
-        if [ ! -s "${NAMED_CONF}" ]; then
-                curl -L --progress-bar -o ${NAMED_CONF} ${WEBPATH_SERVICES}/all/named/named.conf.debian 
-        elif grep 'listen-on' /etc/bind/named.conf | grep -m1 -q '127.0.0.1'; then
-                curl -L --progress-bar -o ${NAMED_CONF} ${WEBPATH_SERVICES}/all/named/named.conf.debian 
-        else
-			if [ -s /etc/bind/named.conf.options ]; then
-				if grep 'listen-on' /etc/bind/named.conf.options | grep -m1 -q '127.0.0.1'; then
-					curl -L --progress-bar -o ${NAMED_CONF} ${WEBPATH_SERVICES}/all/named/named.conf.debian 
-				fi
-			fi
-        fi
-        if [ ! -s /etc/bind/named.ca ]; then
-               curl -L --progress-bar -o /etc/bind/named.ca ${WEBPATH_SERVICES}/all/named/named.ca
-        fi
-		BIND9=/lib/systemd/system/bind9.service
-		if [ ! -s ${BIND9} ] && [ -s /etc/systemd/system/multi-user.target.wants/bind9.service ]; then
-			BIND9=/etc/systemd/system/multi-user.target.wants/bind9.service
-		fi
-
-		if [ ! -s /etc/systemd/system/named.service ]; then
-			if  [ -s ${BIND9} ]; then
-				systemctl stop bind9.service
-				systemctl disable bind9.service
-				mv ${BIND9} /etc/systemd/system/named.service
-			else
-				if [ -s /etc/init.d/bind9 ]; then #I guess it's not systemd here.
-					ln -s bind9 /etc/init.d/named
-				else
-					curl -L --progress-bar -o /etc/systemd/system/named.service ${WEBPATH_SERVICES}/custombuild/2.0/custombuild/configure/systemd/named.service.debian
-				fi
-			fi
-		fi
-		doNamedConf
-		if [ -s ${BIND9} ]; then
-			systemctl stop bind9.service
-		fi
-		systemctl daemon-reload
-		systemctl disable bind9.service
-		systemctl enable named.service
-		systemctl start named.service
-	fi
-	set_service ${SERVICE_NAME} ON
-}
-
-####################################################
-
-doWP() {
-	cd ${WORKDIR}
-	getFile wp/${WP_VER}/wp-cli.phar wp-cli wp-cli.${WP_VER}
-	if [ -s ${WORKDIR}/wp-cli.${WP_VER} ]; then
-		mv -f ${WORKDIR}/wp-cli.${WP_VER} /usr/local/bin/wp
-		chmod +x /usr/local/bin/wp
-	else
-		rm -f ${WORKDIR}/wp-cli.${WP_VER}
-	fi
-
-	if [ -d /etc/cagefs/conf.d ] && [ ! -s /etc/cagefs/conf.d/wp.cfg ]; then
-		echo '[wp-cli]' > /etc/cagefs/conf.d/wp.cfg 
-		echo 'comment=wp-cli' >> /etc/cagefs/conf.d/wp.cfg 
-		echo 'paths=/usr/local/bin/wp' >> /etc/cagefs/conf.d/wp.cfg 
-	fi
-
-	echo "WP-CLI ${WP_VER} Installed."
-	writeLog "WP_CLI ${WP_VER} installed"
-
-	if ! ${EXEC_CL_COMMANDS_ONCE}; then
-		cagefsctl_update
-	else
-		CL_COMPONENT_UPDATE=true
-	fi
-}
-
-####################################################
-
-doImapsync() {
-	getFile imapsync/imapsync-${IMAPSYNC_VER}.tar.gz imapsync imapsync-${IMAPSYNC_VER}.tar.gz
-	if [ "${OS}" != "FreeBSD" ] && [ ! -e ${DEBIAN_VERSION} ]; then
-		CENTOS7_DEPS="perl-File-Copy-Recursive perl-App-cpanminus perl-Dist-CheckConflicts perl-HTML-Parser perl-libwww-perl perl-Module-Implementation perl-Module-ScanDeps perl-Package-Stash perl-Package-Stash-XS perl-PAR-Packer perl-Regexp-Common perl-Sys-MemInfo perl-Test-Fatal perl-Test-Mock-Guard perl-Test-Requires perl-Test-Deep perl-File-Tail perl-Test-NoWarnings perl-Test-Simple perl-Test-Warn perl-Sub-Uplevel"
-		if ! rpm -q --quiet ${CENTOS7_DEPS}; then
-			yum -y install ${CENTOS7_DEPS}
-		fi
-		if [ "${CLOUDLINUX_OPT}" = "yes" ]; then
-			POWERTOOLS=cloudlinux-PowerTools
-		elif [ -e /etc/yum.repos.d/CentOS-PowerTools.repo ] && grep -m1 -q '\[PowerTools\]' /etc/yum.repos.d/CentOS-PowerTools.repo; then
-			POWERTOOLS=PowerTools
-		elif [ -e /etc/yum.repos.d/oracle-linux-ol8.repo ]; then
-			POWERTOOLS=ol8_codeready_builder
-		elif [ -e /etc/yum.repos.d/redhat.repo ]; then
-			POWERTOOLS=codeready-builder-for-rhel-8-x86_64-rpms
-		else
-			POWERTOOLS=powertools
-		fi
-		if [ "${OS_CENTOS_VER}" = "8" ]; then
-			APPEND_ENABLEREPO="--enablerepo=${POWERTOOLS}"
-		fi
-		if ! rpm -q --quiet perl-IO-Tee perl-Mail-IMAPClient perl-Sys-MemInfo perl-Readonly perl-Encode-IMAPUTF7 perl-File-Copy-Recursive perl-Unicode-String perl-Regexp-Common perl-File-Tail perl-IO-Socket-INET6; then
-			yum -y install perl-IO-Tee perl-Mail-IMAPClient perl-Sys-MemInfo perl-Readonly perl-Encode-IMAPUTF7 perl-File-Copy-Recursive perl-Unicode-String perl-Regexp-Common perl-File-Tail perl-IO-Socket-INET6 --enablerepo=${EPEL_REPO_NAME} ${APPEND_ENABLEREPO}
-		fi
-	elif [ "${OS}" != "FreeBSD" ]; then
-		DEBIAN10_DEAPS="libauthen-ntlm-perl libcgi-pm-perl libcrypt-openssl-rsa-perl libdata-uniqid-perl libencode-imaputf7-perl libfile-copy-recursive-perl libfile-tail-perl libio-socket-inet6-perl libio-socket-ssl-perl libio-tee-perl libhtml-parser-perl libjson-webtoken-perl libmail-imapclient-perl libparse-recdescent-perl libmodule-scandeps-perl libreadonly-perl libregexp-common-perl libsys-meminfo-perl libterm-readkey-perl libtest-mockobject-perl libtest-pod-perl libunicode-string-perl liburi-perl libwww-perl libtest-nowarnings-perl libtest-deep-perl libtest-warn-perl libtest-requires-perl libtest-modern-perl libtest-mock-guard-perl libpar-packer-perl libdist-checkconflicts-perl cpanminus"
-		if ! dpkg -s ${DEBIAN10_DEAPS} >/dev/null 2>&1; then
-			apt-get -y install ${DEBIAN10_DEAPS}
-		fi
-	fi
-	quitIfLocked doImapsync
-
-	cd ${CWD}
-	FILE=${CWD}/imapsync-${IMAPSYNC_VER}.tar.gz
-	checkFile ${FILE}
-	echo "Extracting ..."
-	tar xzf ${FILE} --no-same-owner
-	echo "Done."
-	cd imapsync-imapsync-${IMAPSYNC_VER}
-	echo "Configuring imapsync-${IMAPSYNC_VER}..."
-
-	chmod +x imapsync
-
-	echo "Installing imapsync-${IMAPSYNC_VER}..."
-	cp -p imapsync /usr/local/bin/imapsync
-	if [ -d /etc/cagefs/conf.d ] && [ ! -s /etc/cagefs/conf.d/wp.cfg ]; then
-		echo '[imapsync]' > /etc/cagefs/conf.d/imapsync.cfg 
-		echo 'comment=imapsync' >> /etc/cagefs/conf.d/imapsync.cfg 
-		echo 'paths=/usr/local/bin/imapsync' >> /etc/cagefs/conf.d/imapsync.cfg 
-	fi
-	echo "imapsync ${IMAPSYNC_VER} installed"
-	writeLog "imapsync ${IMAPSYNC_VER} installed"
-
-	removeLockfile
-	cd ${CWD}
-
-	/sbin/ldconfig
-	if ! ${EXEC_CL_COMMANDS_ONCE}; then
-		cagefsctl_update
-	else
-		CL_COMPONENT_UPDATE=true
-	fi
-}
-
-####################################################
-
 doLego() {
 	cd ${WORKDIR}
 	if [ "${OS}" = "FreeBSD" ]; then
@@ -18035,7 +17385,7 @@ doLibzip() {
 	else
 		CMAKE_NAME="cmake"
 	fi
-	if [ "${CMAKE_NAME}" = "cmake" ]; then
+	if [ ${CMAKE_NAME} = "cmake" ]; then
 		if [ ! -e /usr/local/cmake ] && [ ! -e /usr/local/bin/cmake ] && [ ! -e /usr/bin/cmake ] && [ ! -e /usr/bin/cmake3 ]; then
 			echo "Cannot find ${CMAKE_NAME}, installing it..."
 			if [ -e /etc/debian_version ]; then
@@ -18128,14 +17478,6 @@ doWebalizer() {
 		do_exit 1 "You cannot install webalizer, because you do not have it set in options.conf file."
 	fi
 
-	if [ "${OS}" != "FreeBSD" ] && [ ! -e ${DEBIAN_VERSION} ]; then
-		if [ -x /usr/bin/rpm ]; then
-			if [ `checkRPMPackage gd-devel` -ne 0 ]; then
-				yum -y install gd-devel
-				ldconfig
-			fi
-		fi
-	fi
 
 	PREFIX=/usr
 	LIBPATH=/usr/lib
@@ -18353,16 +17695,7 @@ doNginxUnit_module() {
 	fi
 	./configure ${UNIT_COMPONENT} ${UNIT_COMPONENT_ADDITIONAL_FLAGS}
 	if [ "${UNIT_COMPONENT}" = "nodejs" ]; then
-		if [ "${OS_CENTOS_VER}" = "7" ]; then
-			#C++11 is needed for libmodsecurity
-			if [ ! -d /opt/rh/devtoolset-9 ]; then
-				yum -y install centos-release-scl
-				yum -y install devtoolset-9
-			fi
-			scl enable devtoolset-9 "make node-install"
-		else
-			make node-install
-		fi
+		make node-install
 	elif [ "${UNIT_COMPONENT}" = "java" ]; then
 		make ${UNIT_COMPONENT}${UNIT_COMPONENT_VER}-install
 	elif [ "${UNIT_COMPONENT}" = "perl" ]; then
@@ -18494,14 +17827,14 @@ doNginxUnit_modules() {
 			fi
 			doNginxUnit_module python ${PYTHON_VERSION}
 		fi
-		if ! ls -ld /usr/include/ruby*/ 2>/dev/null || [ ! -d /usr/lib64/ruby ]; then
+		if [ ! -s /usr/include/ruby.h ] && [ ! -s /usr/local/include/ruby.h ]; then
 			if [ -e /etc/debian_version ]; then
-				apt-get -y install ruby-dev ruby-rack
+				apt-get -y install ruby-dev
 			elif [ "${OS}" != "FreeBSD" ]; then
-				yum -y install ruby-devel rubygem-rack
+				yum -y install ruby-devel
 			fi
 		fi
-		if ls -ld /usr/include/ruby*/ 2>/dev/null || [ -d /usr/lib64/ruby ]; then
+		if [ -s /usr/include/ruby.h ] || [ -s /usr/local/include/ruby.h ]; then
 			RUBY_VERSION=`ruby -v | awk '{print $2}' | cut -d. -f1,2`
 			if [ -z "${RUBY_VERSION}" ]; then
 				RUBY_VERSION=2
@@ -18547,7 +17880,7 @@ doNginxUnit() {
 
 	#Add nginx_unit user/group if it doesn't exist after installation
 	addUserGroup nginx_unit nginx_unit
-	addToAccess nginx_unit
+	addNginxUnitToAccess
 
 	quitIfLocked doNginxUnit
 
@@ -18644,7 +17977,7 @@ doNginxUnit() {
 	fi
 
 	if [ ! -e /etc/logrotate.d/unit ] && [ ${OS} != "FreeBSD" ]; then
-		curl ${CURL_CONNECT_OPTIONS} ${WEBPATH}/unit.logrotate -o /etc/logrotate.d/unit
+		wget ${WGET_CONNECT_OPTIONS} ${WEBPATH}/unit.logrotate -O /etc/logrotate.d/unit
 	fi
 
 	if [ ! -d /var/log/unit ]; then
@@ -18686,11 +18019,11 @@ doUpdateScript() {
 	if [ ${OS} = "FreeBSD" ]; then
 		fetch -o ./${NAME}.tar.gz ${WEBPATH}/${CUSTOMBUILD_OPT}/${NAME}.tar.gz
 	else
-		curl ${CURL_CONNECT_OPTIONS} -o ./${NAME}.tar.gz ${WEBPATH}/${CUSTOMBUILD_OPT}/${NAME}.tar.gz
+		wget ${WGET_CONNECT_OPTIONS} -O ./${NAME}.tar.gz ${WEBPATH}/${CUSTOMBUILD_OPT}/${NAME}.tar.gz
 		
 		if [ ! -s ./${NAME}.tar.gz ]; then
 			echo "${boldon}Fileserver might be down, using the backup file server..${boldoff}"		
-			curl ${CURL_CONNECT_OPTIONS} -o ./${NAME}.tar.gz ${WEBPATH_BACKUP}/${CUSTOMBUILD_OPT}/${NAME}.tar.gz
+			wget ${WGET_CONNECT_OPTIONS} -O ./${NAME}.tar.gz ${WEBPATH_BACKUP}/${CUSTOMBUILD_OPT}/${NAME}.tar.gz
 		fi
 	fi
 
@@ -19395,7 +18728,7 @@ ensure_dhparam() {
 		FMD5=""
 	fi
 	if [ "${MD5}" != "${FMD5}" ]; then
-		curl ${CURL_CONNECT_OPTIONS} --silent -o ${DHF} ${WEBPATH}/dhe/ffdhe4096.pem
+		wget ${WGET_CONNECT_OPTIONS} -q -O ${DHF} ${WEBPATH}/dhe/ffdhe4096.pem
 	fi
 	if [ ! -s ${DHF} ]; then
 		echo "Creating dhparam in ${DHF}"
@@ -19679,12 +19012,6 @@ doSslConfigurationWebserver() {
 		if [ ! -e ${WORKDIR}/custom/ap2/conf/extra/httpd-ssl.conf ]; then
 			perl -pi -e "s|^SSLProtocol.*|${APACHE_SSL_PROTOCOLS}|g" /etc/httpd/conf/extra/httpd-ssl.conf
 			perl -pi -e "s|^SSLCipherSuite.*|${APACHE_SSL_CIPHERSUITE}|g" /etc/httpd/conf/extra/httpd-ssl.conf
-			if [ -s /etc/httpd/conf/ssl.crt/server.crt.combined ]; then
-				perl -pi -e 's|/etc/httpd/conf/ssl\.crt/server\.crt$|/etc/httpd/conf/ssl.crt/server.crt.combined|g' /etc/httpd/conf/extra/httpd-ssl.conf
-				perl -pi -e 's|^SSLCACertificateFile|#SSLCACertificateFile|g' /etc/httpd/conf/extra/httpd-ssl.conf
-				perl -pi -e 's|/etc/httpd/conf/ssl\.crt/server\.crt$|/etc/httpd/conf/ssl.crt/server.crt.combined|g' /etc/httpd/conf/extra/httpd-vhosts.conf
-				perl -pi -e 's|    SSLCACertificateFile|    #SSLCACertificateFile|g' /etc/httpd/conf/extra/httpd-vhosts.conf
-			fi
 			if ! grep -m1 -q 'SSLOpenSSLConfCmd' /etc/httpd/conf/extra/httpd-ssl.conf; then
 				# Needs OpenSSL 1.0.2 or higher
 				OV=`openssl_version`
@@ -19732,13 +19059,6 @@ doSslConfigurationFtp() {
 	if [ "${FTPD_OPT}" = "proftpd" ] && [ ! -e ${WORKDIR}/custom/proftpd/conf/proftpd.conf ]; then
 		perl -pi -e "s|TLSCipherSuite .*|${PROFTPD_SSL_CIPHERSUITE}|g" /etc/proftpd.conf
 		perl -pi -e "s|TLSProtocol .*|${PROFTPD_SSL_PROTOCOLS}|g" /etc/proftpd.conf
-		if openssl x509 -in /etc/exim.cert -text -noout | grep -i 'Public Key Algorithm' | grep -q 'ecPub'; then
-			perl -pi -e 's|TLSRSACertificateFile|TLSECCertificateFile|g' /etc/proftpd.conf
-			perl -pi -e 's|TLSRSACertificateKeyFile|TLSECCertificateKeyFile|g' /etc/proftpd.conf
-		else
-			perl -pi -e 's|TLSECCertificateFile|TLSRSACertificateFile|g' /etc/proftpd.conf
-			perl -pi -e 's|TLSECCertificateKeyFile|TLSRSACertificateKeyFile|g' /etc/proftpd.conf
-		fi
 	elif [ "${FTPD_OPT}" = "pureftpd" ] && [ ! -e ${WORKDIR}/custom/pureftpd/pure-ftpd.conf ] && [ -s /etc/pure-ftpd.conf ]; then
 		perl -pi -e "s|^TLSCipherSuite.*|${PUREFTPD_SSL_CIPHERSUITE}|g" /etc/pure-ftpd.conf
 	fi
@@ -19863,7 +19183,6 @@ doRewriteConfs() {
 		ln -sf $HDC ${HTTPDCONF}/extra/httpd-directories.conf
 
 		doApacheHostConf
-		doPasswdServerStatus
 
 		if [ "${APCUSTOMCONFDIR}" != "0" ]; then
 			cp -rf ${APCUSTOMCONFDIR} ${HTTPDDIR}
@@ -19904,6 +19223,7 @@ doRewriteConfs() {
 		#ensure we have the correct apache_ver
 		setVal apache_ver 2.0 ${DACONF_TEMPLATE_FILE}
 		setVal apache_ver 2.0 ${DACONF_FILE}
+		echo "action=rewrite&value=httpd" >> ${TASK_QUEUE}
 	
 		do_rewrite_httpd_alias
 
@@ -20002,11 +19322,6 @@ doRewriteConfs() {
 
 		doModSecurityAdj
 		doSslConfigurationWebserver
-		#Rewriting httpd configuration
-		if [ "${WEBSERVER_OPT}" != "nginx_apache" ]; then
-			echo "action=rewrite&value=httpd" >> ${TASK_QUEUE}
-			run_dataskq
-		fi
 
 		if [ "${WEBSERVER_OPT}" = "apache" ] || [ "${WEBSERVER_OPT}" = "nginx_apache" ]; then
 			echo "Restarting apache."
@@ -20114,6 +19429,7 @@ doRewriteConfs() {
 		fi
 
 		#rewrite ips.conf
+		echo "action=rewrite&value=nginx" >> ${TASK_QUEUE}
 		echo "action=rewrite&value=ips" >> ${TASK_QUEUE}
 
 		run_dataskq
@@ -20178,9 +19494,6 @@ doRewriteConfs() {
 		doPhpConf
 
 		doModSecurityAdj
-
-		echo "action=rewrite&value=nginx" >> ${TASK_QUEUE}
-		run_dataskq
 
 		echo "Restarting nginx."
 		control_service nginx stop >/dev/null 2>&1
@@ -20513,11 +19826,6 @@ doUpdateData() {
 
 	if [ "${FREETYPE_VER}" != "0" ] && [ -e /usr/local/bin/freetype-config ]; then
 		getFile freetype-${FREETYPE_VER}.tar.gz freetype
-	fi
-	if [ "${PHP_IGBINARY_OPT}" = "yes" ]; then
-		if [ "${IGBINARY_VER}" != "0" ]; then
-			getFile php_extensions/igbinary/igbinary-${IGBINARY_VER}.tar.gz igbinary igbinary-${IGBINARY_VER}.tar.gz
-		fi
 	fi
 	if [ "${IMAGICK_OPT}" = "yes" ]; then
 		if [ "${IMAGICK_VER}" != "0" ]; then
@@ -21087,9 +20395,6 @@ doApache2() {
 		do_exit 1 "You cannot install Apache, because you do not have it set in options.conf file."
 	fi
 
-	addUserGroup apache apache
-	addToAccess apache
-
 	#die die die!!
 	if [ -s /usr/sbin/apache2 ]; then
 		chmod 0 /usr/sbin/apache2
@@ -21242,6 +20547,7 @@ doApache2() {
 		fi
 	fi
 
+	addUserGroup apache apache
 	if grep -m1 -q '^nginx:' /etc/group; then
 		usermod -a -G nginx apache 2>/dev/null
 	fi
@@ -21682,8 +20988,6 @@ doApache2() {
 		doApacheHostConf
 	fi
 
-	doPasswdServerStatus
-
 	if [ "${APCUSTOMCONFDIR}" != "0" ]; then
 		cp -rf ${APCUSTOMCONFDIR} ${HTTPDDIR}
 	fi
@@ -21774,7 +21078,7 @@ doApache2() {
 	fi
 	perl -pi -e 's/[A-Za-z]* is functioning normally/Apache is functioning normally/' ${WWWDIR}/index.html
 	if [ ! -e /etc/logrotate.d/apache ] && [ ${OS} != "FreeBSD" ]; then
-		curl ${CURL_CONNECT_OPTIONS} ${WEBPATH}/apache.logrotate -o /etc/logrotate.d/apache
+		wget ${WGET_CONNECT_OPTIONS} ${WEBPATH}/apache.logrotate -O /etc/logrotate.d/apache
 	fi
 
 	if [ ! -d /usr/local/safe-bin ]; then
@@ -22061,7 +21365,7 @@ doLiteSpeedLicense() {
 	if [ "${LITESPEED_SERIALNO_OPT}" = "trial" ]; then
 		echo "LiteSpeed serial number not found. Using a trial key."
 		if [ ! -e ${LITESPEED_TRIAL_KEY} ]; then
-			curl ${CURL_CONNECT_OPTIONS} -o ${LSWS_HOME}/conf/trial.key https://license.litespeedtech.com/da/trial.key
+			wget ${WGET_CONNECT_OPTIONS} -O ${LSWS_HOME}/conf/trial.key https://license.litespeedtech.com/da/trial.key
 		fi
 		if [ ! -e ${LITESPEED_TRIAL_KEY} ] && [ ! -s ${LSWS_HOME}/conf/trial.key ]; then
 			do_exit 1 "LiteSpeed trial key ${LITESPEED_TRIAL_KEY} is also not found. Exiting."
@@ -22132,7 +21436,6 @@ doLiteSpeed() {
 	set64
 
 	addUserGroup apache apache
-	addToAccess apache
 
 	chown apache:apache /var/www
 	chmod 551 /var/www
@@ -22278,7 +21581,7 @@ doLiteSpeed() {
 	mkdir -p ${PLUGIN_DIR}/admin
 	mkdir -p ${PLUGIN_DIR}/images
 
-	curl ${CURL_CONNECT_OPTIONS} -o ${PLUGIN_DIR}/images/admin_icon.svg https://www.litespeedtech.com/images/logos/lsws-icon.svg
+	wget -O ${PLUGIN_DIR}/images/admin_icon.svg https://www.litespeedtech.com/images/logos/lsws-icon.svg
 
 	echo '<a href="http://|SERVER_NAME|:7080" target="_blank">LiteSpeed WebAdmin Console</a>' > ${PLUGIN_DIR}/hooks/admin_img.html
 	echo '<a href="http://|SERVER_NAME|:7080" target="_blank">LiteSpeed WebAdmin Console</a>' > ${PLUGIN_DIR}/hooks/admin_txt.html
@@ -22610,16 +21913,6 @@ doOpenLiteSpeed() {
 
 	quitIfLocked doOpenLiteSpeed
 
-	#die die die!!
-	if [ -s /usr/sbin/apache2 ]; then
-		chmod 0 /usr/sbin/apache2
-		killall -9 apache2 2> /dev/null
-	fi
-	if [ -s /usr/lib/apache2/mpm-prefork/apache2 ]; then
-		chmod 0 /usr/lib/apache2/mpm-prefork/apache2
-		killall -9 apache2 2> /dev/null
-	fi
-
 	if [ ! -d /var/www/html ]; then
 		mkdir -p /var/www/html
 	fi
@@ -22628,7 +21921,6 @@ doOpenLiteSpeed() {
 
 	addUserGroup lsadm lsadm
 	addUserGroup apache apache
-	addToAccess apache
 
 	chown apache:apache /var/www
 	chmod 551 /var/www
@@ -22980,7 +22272,7 @@ doOpenLiteSpeed() {
 	fi
 	perl -pi -e 's/[A-Za-z]* is functioning normally/OpenLiteSpeed is functioning normally/' ${WWWDIR}/index.html
 	if [ ! -e /etc/logrotate.d/apache ] && [ ${OS} != "FreeBSD" ]; then
-		curl ${CURL_CONNECT_OPTIONS} ${WEBPATH}/apache.logrotate -o /etc/logrotate.d/apache
+		wget ${WGET_CONNECT_OPTIONS} ${WEBPATH}/apache.logrotate -O /etc/logrotate.d/apache
 	fi
 
 	if ! ${EXEC_CL_COMMANDS_ONCE}; then
@@ -23151,7 +22443,7 @@ doModSecurityRules() {
 			CWAF_PLATFORM=Apache
 		fi
 		if [ ! -e /usr/local/cwaf/scripts/updater.pl ]; then
-			curl ${CURL_CONNECT_OPTIONS} -o cwaf_client_install.sh ${WEBPATH_CWAF}/cpanel/cwaf_client_install.sh
+			wget ${WGET_CONNECT_OPTIONS} ${WGET_HTTPS_OPTIONS} -O cwaf_client_install.sh ${WEBPATH_CWAF}/cpanel/cwaf_client_install.sh
 			chmod 700 cwaf_client_install.sh
 			HOME=/root TERM=xterm ./cwaf_client_install.sh -- --batch --login=nologin --password=nopassword --platform=${CWAF_PLATFORM}
 
@@ -23877,7 +23169,7 @@ doNginx() {
 	set_http2
 
 	addUserGroup nginx nginx
-	addToAccess nginx
+	addNginxToAccess
 
 	if grep -m1 -q '^apache:' /etc/group; then
 		usermod -a -G apache nginx 2>/dev/null
@@ -24221,7 +23513,7 @@ doNginx() {
 	fi
 	perl -pi -e 's/[A-Za-z]* is functioning normally/Nginx is functioning normally/' ${WWWDIR}/index.html
 	if [ ! -e /etc/logrotate.d/nginx ] && [ ${OS} != "FreeBSD" ]; then
-		curl ${CURL_CONNECT_OPTIONS} ${WEBPATH}/nginx.logrotate -o /etc/logrotate.d/nginx
+		wget ${WGET_CONNECT_OPTIONS} ${WEBPATH}/nginx.logrotate -O /etc/logrotate.d/nginx
 	fi
 
 	if [ ! -d /var/log/nginx/domains ]; then
@@ -24379,12 +23671,6 @@ doJailshell() {
 doBubblewrap() {
 	quitIfLocked doBubblewrap
 
-	LXC_SKIP_BWRAP=true
-	if [ -e /dev/.lxc/proc/self/uid_map ]; then
-		if ! cat /dev/.lxc/proc/self/uid_map >/dev/null 2>&1; then
-			LXC_SKIP_BWRAP=false
-		fi
-	fi
 	if [ "${SYSTEMD}" != "yes" ]; then
 		echo "Your OS does not support Linux namespaces for user isolation."
 		return
@@ -24392,10 +23678,8 @@ doBubblewrap() {
 		echo "Please rely on CloudLinux CageFS for isolation of the users (cloudlinux=yes detected in the settings)."
 		return
 	elif systemd-detect-virt | grep -m1 -q -E 'lxc|openvz'; then
-		if ${LXC_SKIP_BWRAP}; then
-			echo "Your container virtualization does not support Linux namespaces for user isolation, please switch to XEN/KVM/VMware or other non-container virtualization.."
-			return
-		fi
+		echo "Your container virtualization does not support Linux namespaces for user isolation, please switch to XEN/KVM/VMware or other non-container virtualization.."
+		return
 	fi
 
 	cd ${CWD}
@@ -24924,7 +24208,7 @@ doDovecotConf() {
 	#SSO alternate passwd file
 	if [ -x ${DA_BIN} ] && [ -s ${DACONF_FILE} ]; then
 		if ${DA_BIN} c | grep -m1 -q '^one_click_webmail_login=1$'; then
-			curl ${CURL_CONNECT_OPTIONS} -o /etc/dovecot/conf/alternate_passwd.conf ${WEBPATH_SERVICES}/all/auto_login/dovecot/alternate_passwd.conf
+			wget ${WGET_CONNECT_OPTIONS} -O /etc/dovecot/conf/alternate_passwd.conf ${WEBPATH_SERVICES}/all/auto_login/dovecot/alternate_passwd.conf
 		elif [ -s /etc/dovecot/conf/alternate_passwd.conf ]; then
 			rm -f /etc/dovecot/conf/alternate_passwd.conf
 		fi
@@ -25365,9 +24649,7 @@ doDovecot() {
 	fi
 
 	control_service dovecot restart
-	set_service dovecot ON
-	set_service vm-pop3d delete
-
+	
 	writeLog "Dovecot ${DOVECOT_VER} installed"
 }
 
@@ -25666,7 +24948,7 @@ dospamassassin() {
 	if [ "`version_cmp ${EXIMCONF_RELEASE_OPT} 4.6 'exim.conf ver check for ACL spam check'`" -lt 0 ]; then
 		perl -pi -e 's|#.include_if_exists /etc/exim.spamassassin.conf|.include_if_exists /etc/exim.spamassassin.conf|' /etc/exim.conf
 		if [ ! -s /etc/exim.spamassassin.conf ]; then
-				curl ${CURL_CONNECT_OPTIONS} -o /etc/exim.spamassassin.conf ${DOWNLOADSERVER_SCHEME}://${DOWNLOADSERVER_OPT}/services/exim.spamassassin.conf
+				wget ${WGET_CONNECT_OPTIONS} -O /etc/exim.spamassassin.conf ${DOWNLOADSERVER_SCHEME}://${DOWNLOADSERVER_OPT}/services/exim.spamassassin.conf
 				chmod 644 /etc/exim.spamassassin.conf
 		fi
 		rm -f /etc/exim.spamd.conf
@@ -25801,7 +25083,7 @@ doRspamd() {
 		fi
 		CODENAME=`lsb_release -c -s`
 		if [ ! -s /etc/apt/sources.list.d/rspamd.list ]; then
-			curl ${CURL_CONNECT_OPTIONS} -o - https://rspamd.com/apt-stable/gpg.key | apt-key add -
+			wget ${WGET_CONNECT_OPTIONS} ${WGET_HTTPS_OPTIONS} -O- https://rspamd.com/apt-stable/gpg.key | apt-key add -
 			echo "deb [arch=amd64] https://rspamd.com/apt-stable/ $CODENAME main" > /etc/apt/sources.list.d/rspamd.list
 			echo "deb-src [arch=amd64] https://rspamd.com/apt-stable/ $CODENAME main" >> /etc/apt/sources.list.d/rspamd.list
 		fi
@@ -25977,7 +25259,7 @@ doRspamd() {
 	ldconfig
 
 	if [ ! -s /etc/logrotate.d/rspamd ] && [ ${OS} != "FreeBSD" ]; then
-		curl ${CURL_CONNECT_OPTIONS} ${WEBPATH}/rspamd.logrotate -o /etc/logrotate.d/rspamd
+		wget ${WGET_CONNECT_OPTIONS} ${WEBPATH}/rspamd.logrotate -O /etc/logrotate.d/rspamd
 	fi
 	
 	writeLog "Rspamd has been installed successfully."
@@ -25985,21 +25267,15 @@ doRspamd() {
 
 doNetdata() {
 	if [ "${OS}" = "FreeBSD" ]; then
-		curl ${CURL_CONNECT_OPTIONS} -o netdata.sh https://my-netdata.io/kickstart.sh && bash ./netdata.sh --dont-wait --disable-telemetry && rm -f netdata.sh
+		wget -q -O netdata.sh https://my-netdata.io/kickstart.sh && bash ./netdata.sh --dont-wait --disable-telemetry && rm -f netdata.sh
 	else
-		curl ${CURL_CONNECT_OPTIONS} -o netdata.sh https://my-netdata.io/kickstart-static64.sh && bash ./netdata.sh --dont-wait --disable-telemetry && rm -f netdata.sh
-	fi
-
-	if [ -e /opt/netdata/etc/netdata/netdata.conf ] && [ ! -e /etc/netdata/netdata.conf ]; then
-		NETDATA_CONF=/opt/netdata/etc/netdata/netdata.conf
-	else
-		NETDATA_CONF=/etc/netdata/netdata.conf
+		wget -q -O netdata.sh https://my-netdata.io/kickstart-static64.sh && bash ./netdata.sh --dont-wait --disable-telemetry && rm -f netdata.sh
 	fi
 
 	if [ -s ${WORKDIR}/custom/netdata/netdata.conf ]; then
-		cp -pf ${WORKDIR}/custom/netdata/netdata.conf ${NETDATA_CONF}
+		cp -pf ${WORKDIR}/custom/netdata/netdata.conf /opt/netdata/etc/netdata/netdata.conf
 	else
-		printf "[web]\nbind to = unix:/var/run/netdata/netdata.sock\nweb files owner = root\nweb files group = netdata\n[global]\nrun as user = netdata\nprocess scheduling policy = keep\nOOM score = keep\n" > ${NETDATA_CONF}
+		printf "[web]\nbind to = unix:/var/run/netdata/netdata.sock\n[global]\nprocess scheduling policy = keep\nOOM score = keep\n" > /opt/netdata/etc/netdata/netdata.conf
 	fi
 
 	if [ -s /usr/lib/systemd/system/netdata.service ]; then
@@ -26015,7 +25291,6 @@ doNetdata() {
 	killall netdata
 	sleep 10
 	control_service netdata start
-	set_service netdata ON
 }
 
 dozstd() {
@@ -26122,8 +25397,8 @@ doclamav() {
 	getFile freshclam_debian
 
 	if [ "${CLAMAV_EXIM_OPT}" = "yes" ]; then
-		curl ${CURL_CONNECT_OPTIONS} -o /etc/exim.clamav.load.conf ${DOWNLOADSERVER_SCHEME}://${DOWNLOADSERVER_OPT}/services/exim.clamav.load.conf
-		curl ${CURL_CONNECT_OPTIONS} -o /etc/exim.clamav.conf ${DOWNLOADSERVER_SCHEME}://${DOWNLOADSERVER_OPT}/services/exim.clamav.conf
+		wget ${WGET_CONNECT_OPTIONS} -O /etc/exim.clamav.load.conf ${DOWNLOADSERVER_SCHEME}://${DOWNLOADSERVER_OPT}/services/exim.clamav.load.conf
+		wget ${WGET_CONNECT_OPTIONS} -O /etc/exim.clamav.conf ${DOWNLOADSERVER_SCHEME}://${DOWNLOADSERVER_OPT}/services/exim.clamav.conf
 	fi
 
 	quitIfLocked doclamav
@@ -26158,123 +25433,10 @@ doclamav() {
 	cd clamav-${CLAMAV_VER}
 
 	echo "Configuring clamav ${CLAMAV_VER} ..."
-	mkdir -p build
-	cd build
 
 	if [ ! -d /usr/local/include/curl ] && grep -m1 -q 'with-libcurl=/usr/local' ${CWD}/${CLAMAV_CONFIGURE}; then
 		perl -pi -e 's|with-libcurl=/usr/local|with-libcurl=/usr|g' ${CWD}/${CLAMAV_CONFIGURE}
 	fi
-	if [ "${OS_CENTOS_VER}" = "6" ] || [ "${OS_CENTOS_VER}" = "7" ]; then
-		CMAKE_NAME="cmake3"
-		if grep -m1 -q "^cmake " ${CWD}/${CLAMAV_CONFIGURE}; then
-			perl -pi -e 's|^cmake |cmake3 |g' ${CWD}/${CLAMAV_CONFIGURE}
-		fi
-	else
-		CMAKE_NAME="cmake"
-	fi
-	
-	if [ "${CMAKE_NAME}" = "cmake" ]; then
-		if [ ! -e /usr/local/cmake ] && [ ! -e /usr/local/bin/cmake ] && [ ! -e /usr/bin/cmake ] && [ ! -e /usr/bin/cmake3 ]; then
-			echo "Cannot find ${CMAKE_NAME}, installing it..."
-			if [ -e /etc/debian_version ]; then
-				apt-get -y install ${CMAKE_NAME}
-			elif [ "${OS}" = "FreeBSD" ]; then
-				${PKG_INSTALL} ${CMAKE_NAME}
-			else
-				yum -y install ${CMAKE_NAME}
-			fi
-		fi
-	elif [ ! -e /usr/bin/cmake3 ]; then
-		yum -y install ${CMAKE_NAME} --enablerepo=${EPEL_REPO_NAME}
-	fi
-
-	if [ "${OS_DEBIAN_VER}" = "9" ]; then
-		CMAKE_MINOR_VER=`cmake --version | head -n1 | grep -o '[0-9]\.[^ ]*' | cut -d. -f2`
-		if [ ${CMAKE_MINOR_VER} -lt 14 ]; then
-			if ! grep -r --include '*.list' '^deb ' /etc/apt/sources.list /etc/apt/sources.list.d | grep -m1 -q 'stretch-backports'; then
-				echo 'deb http://deb.debian.org/debian stretch-backports main' >> /etc/apt/sources.list.d/stretch-backports.list
-				apt-get update
-			fi
-			apt-get -y install -t stretch-backports ${CMAKE_NAME}
-		fi
-	fi
-
-	if [ "${OS_DEBIAN_VER}" = "10" ]; then
-		CMAKE_MINOR_VER=`cmake --version | head -n1 | grep -o '[0-9]\.[^ ]*' | cut -d. -f2`
-		if [ ${CMAKE_MINOR_VER} -lt 14 ]; then
-			if ! grep -r --include '*.list' '^deb ' /etc/apt/sources.list /etc/apt/sources.list.d | grep -m1 -q 'buster-backports'; then
-				echo 'deb http://deb.debian.org/debian buster-backports main' >> /etc/apt/sources.list.d/buster-backports.list
-				apt-get update
-			fi
-			apt-get -y install -t buster-backports ${CMAKE_NAME}
-		fi
-	fi
-
-	if [ "${OS}" != "FreeBSD" ] && [ ! -e ${DEBIAN_VERSION} ]; then
-		if [ -x /usr/bin/rpm ]; then
-			if [ `checkRPMPackage libxml2-devel` -ne 0 ]; then
-				yum -y install libxml2-devel
-				ldconfig
-			fi
-		fi
-	elif [ "${OS}" != "FreeBSD" ]; then
-		if [ -x /usr/bin/dpkg-query ]; then
-			if [ `checkDebianPackage libxml2-dev` -ne 0 ]; then
-				apt-get -y install libxml2-dev
-				ldconfig
-			fi
-		fi
-	fi
-
-	if [ "${OS}" != "FreeBSD" ] && [ ! -e ${DEBIAN_VERSION} ]; then
-		if [ -x /usr/bin/rpm ]; then
-			if [ `checkRPMPackage bzip2-devel` -ne 0 ]; then
-				yum -y install bzip2-devel
-				ldconfig
-			fi
-		fi
-	elif [ "${OS}" != "FreeBSD" ]; then
-		if [ -x /usr/bin/dpkg-query ]; then
-			if [ `checkDebianPackage libbz2-dev` -ne 0 ]; then
-				apt-get -y install libbz2-dev
-				ldconfig
-			fi
-		fi
-	fi
-
-	if [ ! -e /usr/include/pcre2.h ] && [ ! -e /usr/local/include/pcre2.h ]; then
-		echo "Cannot find pcre2, installing it..."
-		if [ -e /etc/debian_version ]; then
-			apt-get -y install libpcre2-dev
-		elif [ "${OS}" = "FreeBSD" ]; then
-			${PKG_INSTALL} pcre2
-		else
-			yum -y install pcre2-devel
-		fi
-	fi
-
-	if [ ! -e /usr/include/json/json.h ] && [ ! -e /usr/local/include/json/json.h ] && [ ! -e /usr/include/json-c/json.h ] && [ ! -e /usr/local/include/json-c/json.h ]; then
-		echo "Cannot find json-c, installing it..."
-		if [ -e /etc/debian_version ]; then
-			apt-get -y install libjson-c-dev
-		elif [ "${OS}" = "FreeBSD" ]; then
-			${PKG_INSTALL} json-c
-		else
-			yum -y install json-c-devel
-		fi
-	fi
-
-	if [ ! -e /usr/include/curses.h ] && [ ! -e /usr/local/include/curses.h ]; then
-		echo "Cannot find ncurses, installing it..."
-		if [ -e /etc/debian_version ]; then
-			apt-get -y install libncurses-dev
-		elif [ "${OS}" = "FreeBSD" ]; then
-			${PKG_INSTALL} ncurses
-		else
-			yum -y install ncurses-devel
-		fi
-	fi
-
 	${CWD}/${CLAMAV_CONFIGURE}
 	if [ $? -ne 0 ]; then
 		printf "\n*** There was an error while trying to configure clamav.\n"
@@ -26526,123 +25688,6 @@ doRemoveClamav() {
 	echo "Done."
 	cd clamav-${CLAMAV_VER}
 
-	mkdir -p build
-	cd build
-
-	if [ ! -d /usr/local/include/curl ] && grep -m1 -q 'with-libcurl=/usr/local' ${CWD}/${CLAMAV_CONFIGURE}; then
-		perl -pi -e 's|with-libcurl=/usr/local|with-libcurl=/usr|g' ${CWD}/${CLAMAV_CONFIGURE}
-	fi
-	if [ "${OS_CENTOS_VER}" = "6" ] || [ "${OS_CENTOS_VER}" = "7" ]; then
-		CMAKE_NAME="cmake3"
-		if grep -m1 -q "^cmake " ${CWD}/${CLAMAV_CONFIGURE}; then
-			perl -pi -e 's|^cmake |cmake3 |g' ${CWD}/${CLAMAV_CONFIGURE}
-		fi
-	else
-		CMAKE_NAME="cmake"
-	fi
-	
-	if [ "${CMAKE_NAME}" = "cmake" ]; then
-		if [ ! -e /usr/local/cmake ] && [ ! -e /usr/local/bin/cmake ] && [ ! -e /usr/bin/cmake ] && [ ! -e /usr/bin/cmake3 ]; then
-			echo "Cannot find ${CMAKE_NAME}, installing it..."
-			if [ -e /etc/debian_version ]; then
-				apt-get -y install ${CMAKE_NAME}
-			elif [ "${OS}" = "FreeBSD" ]; then
-				${PKG_INSTALL} ${CMAKE_NAME}
-			else
-				yum -y install ${CMAKE_NAME}
-			fi
-		fi
-	elif [ ! -e /usr/bin/cmake3 ]; then
-		yum -y install ${CMAKE_NAME} --enablerepo=${EPEL_REPO_NAME}
-	fi
-
-	if [ "${OS_DEBIAN_VER}" = "9" ]; then
-		CMAKE_MINOR_VER=`cmake --version | head -n1 | grep -o '[0-9]\.[^ ]*' | cut -d. -f2`
-		if [ ${CMAKE_MINOR_VER} -lt 14 ]; then
-			if ! grep -r --include '*.list' '^deb ' /etc/apt/sources.list /etc/apt/sources.list.d | grep -m1 -q 'stretch-backports'; then
-				echo 'deb http://deb.debian.org/debian stretch-backports main' >> /etc/apt/sources.list.d/stretch-backports.list
-				apt-get update
-			fi
-			apt-get -y install -t stretch-backports ${CMAKE_NAME}
-		fi
-	fi
-
-	if [ "${OS_DEBIAN_VER}" = "10" ]; then
-		CMAKE_MINOR_VER=`cmake --version | head -n1 | grep -o '[0-9]\.[^ ]*' | cut -d. -f2`
-		if [ ${CMAKE_MINOR_VER} -lt 14 ]; then
-			if ! grep -r --include '*.list' '^deb ' /etc/apt/sources.list /etc/apt/sources.list.d | grep -m1 -q 'buster-backports'; then
-				echo 'deb http://deb.debian.org/debian buster-backports main' >> /etc/apt/sources.list.d/buster-backports.list
-				apt-get update
-			fi
-			apt-get -y install -t buster-backports ${CMAKE_NAME}
-		fi
-	fi
-
-	if [ "${OS}" != "FreeBSD" ] && [ ! -e ${DEBIAN_VERSION} ]; then
-		if [ -x /usr/bin/rpm ]; then
-			if [ `checkRPMPackage libxml2-devel` -ne 0 ]; then
-				yum -y install libxml2-devel
-				ldconfig
-			fi
-		fi
-	elif [ "${OS}" != "FreeBSD" ]; then
-		if [ -x /usr/bin/dpkg-query ]; then
-			if [ `checkDebianPackage libxml2-dev` -ne 0 ]; then
-				apt-get -y install libxml2-dev
-				ldconfig
-			fi
-		fi
-	fi
-
-	if [ "${OS}" != "FreeBSD" ] && [ ! -e ${DEBIAN_VERSION} ]; then
-		if [ -x /usr/bin/rpm ]; then
-			if [ `checkRPMPackage bzip2-devel` -ne 0 ]; then
-				yum -y install bzip2-devel
-				ldconfig
-			fi
-		fi
-	elif [ "${OS}" != "FreeBSD" ]; then
-		if [ -x /usr/bin/dpkg-query ]; then
-			if [ `checkDebianPackage libbz2-dev` -ne 0 ]; then
-				apt-get -y install libbz2-dev
-				ldconfig
-			fi
-		fi
-	fi
-
-	if [ ! -e /usr/include/pcre2.h ] && [ ! -e /usr/local/include/pcre2.h ]; then
-		echo "Cannot find pcre2, installing it..."
-		if [ -e /etc/debian_version ]; then
-			apt-get -y install libpcre2-dev
-		elif [ "${OS}" = "FreeBSD" ]; then
-			${PKG_INSTALL} pcre2
-		else
-			yum -y install pcre2-devel
-		fi
-	fi
-
-	if [ ! -e /usr/include/json/json.h ] && [ ! -e /usr/local/include/json/json.h ] && [ ! -e /usr/include/json-c/json.h ] && [ ! -e /usr/local/include/json-c/json.h ]; then
-		echo "Cannot find json-c, installing it..."
-		if [ -e /etc/debian_version ]; then
-			apt-get -y install libjson-c-dev
-		elif [ "${OS}" = "FreeBSD" ]; then
-			${PKG_INSTALL} json-c
-		else
-			yum -y install json-c-devel
-		fi
-	fi
-
-	if [ ! -e /usr/include/curses.h ] && [ ! -e /usr/local/include/curses.h ]; then
-		echo "Cannot find ncurses, installing it..."
-		if [ -e /etc/debian_version ]; then
-			apt-get -y install libncurses-dev
-		elif [ "${OS}" = "FreeBSD" ]; then
-			${PKG_INSTALL} ncurses
-		else
-			yum -y install ncurses-devel
-		fi
-	fi
-
 	echo "Configuring clamav ${CLAMAV_VER} for removal..."
 
 	${CWD}/${CLAMAV_CONFIGURE}
@@ -26651,37 +25696,10 @@ doRemoveClamav() {
 		do_exit 1
 	fi
 	echo "Done Configuration."
-	
+
 	echo "Uninstalling ..."
-	while echo "Trying to make clamav..."; do
-		if [ "${OS}" = "FreeBSD" ]; then
-			make CPPFLAGS=-I/usr/kerberos/include LDFLAGS=-liconv -j ${CPU_CORES}
-		else
-			make CPPFLAGS=-I/usr/kerberos/include -j ${CPU_CORES}
-		fi
 
-		if [ $? -ne 0 ]; then
-			if [ ${USER_INPUT} -eq 1 ]; then
-				printf "\n*** The make has failed, do you want to try to make again? (y,n): \n"
-				read yesno
-				echo ""
-			else
-				if [ "${INPUT_VALUE}" != "y" ]; then
-					yesno=n
-				else
-					yesno=${INPUT_VALUE}
-				fi
-			fi
-
-			if [ "${yesno}" = "n" ]; then
-				do_exit 1
-			fi
-		else
-			break
-		fi
-	done
-	make install
-	xargs rm -f < install_manifest.txt
+	make uninstall
 	removeLockfile
 	ldconfig
 	cd ${CWD}
@@ -26713,7 +25731,6 @@ doRemoveClamav() {
 
 	if [ -e ${SYSTEMDDIR}/clamd.service ] && [ "${SYSTEMD}" = "yes" ]; then
 		echo "Removing clamd systemd script..."
-		systemctl stop clamd.service
 		systemctl disable clamd.service
 		rm -f ${SYSTEMDDIR}/clamd.service
 		systemctl daemon-reload
@@ -26721,7 +25738,6 @@ doRemoveClamav() {
 
 	if [ -e ${SYSTEMDDIR}/freshclam.service ] && [ "${SYSTEMD}" = "yes" ]; then
 		echo "Removing freshclam systemd script..."
-		systemctl stop freshclam.service
 		systemctl disable freshclam.service
 		rm -f ${SYSTEMDDIR}/freshclam.service
 		systemctl daemon-reload
@@ -26979,61 +25995,13 @@ doRemovePhp() {
 }
 
 ####################################################
-doFtpCleanup() {
-	if grep -q "^pure-ftpd" ${SERVICES} 2>/dev/null || grep -q "^proftpd" ${SERVICES} 2>/dev/null; then
-		return
-	fi
-	#Clean up FTP env
-	#Get out of here! We don't want any of this (wu-ftpd)!
-	if [ "${OS}" = "FreeBSD" ]; then
-		perl -pi -e 's/^ftp/#ftp/' /etc/inetd.conf
-		killall -HUP inetd
-	elif [ -s /etc/debian_version ]; then
-		dpkg -r --force-all gadmin-proftpd gforge-ftp-proftpd gproftpd proftpd-basic proftpd-doc proftpd-mod-ldap proftpd-mod-mysql proftpd-mod-pgsql pure-ftpd pure-ftpd-common 2> /dev/null
-		dpkg -P gadmin-proftpd gforge-ftp-proftpd gproftpd proftpd-basic proftpd-doc proftpd-mod-ldap proftpd-mod-mysql proftpd-mod-pgsql pure-ftpd pure-ftpd-common 2> /dev/null
-	else
-		rpm -e --nodeps wu-ftp 2> /dev/null
-		rpm -e --nodeps wu-ftpd 2> /dev/null
-		rpm -e --nodeps anonftp 2> /dev/null
-		rpm -e --nodeps pure-ftpd 2> /dev/null
-		rpm -e --nodeps vsftpd 2> /dev/null
-		rpm -e --nodeps psa-proftpd 2> /dev/null
-		rpm -e --nodeps psa-proftpd-xinetd 2> /dev/null
-		rpm -e --nodeps psa-proftpd-start 2> /dev/null
-		rm -f /etc/xinetd.d/proftpd
-		rm -f /etc/xinetd.d/wu-ftpd.rpmsave
-		rm -f /etc/xinetd.d/wu-ftpd
-		rm -f /etc/xinetd.d/ftp_psa
-		rm -f /etc/xinetd.d/gssftp
-		rm -f /etc/xinetd.d/xproftpd
-	fi
-	if [ -x /usr/local/sbin/pure-ftpd ]; then
-		if ! grep -q "^pure-ftpd" ${SERVICES} 2>/dev/null; then
-			killall -9 pure-ftpd 2> /dev/null > /dev/null
-			rm -f /usr/local/sbin/pure-ftpd 2> /dev/null > /dev/null
-		fi
-	fi
-	#while we're doing it, lets get rid of pop stuff too
-	rm -f /etc/xinetd.d/pop*
-
-	#in case they it still holds port 21
-	if [ -s /etc/init.d/xinetd ] && [ "${SYSTEMD}" = "no" ]; then
-			/sbin/service xinetd restart
-	fi
-	if [ -s /usr/lib/systemd/system/xinetd.service ] && [ "${SYSTEMD}" = "yes" ]; then
-			systemctl restart xinetd.service
-	fi
-}
-####################################################
 
 doProftpd() {
 	if [ "${FTPD_OPT}" != "proftpd" ]; then
 		do_exit 1 "You cannot install ProFTPD, because you do not have it set in options.conf file."
 	fi
 
-	doFtpCleanup
 	addUserGroup ftp ftp
-	addToAccess ftp
 
 	getFile proftpd-${PROFTPD_VER}.tar.gz proftpd
 	getFile proftpd proftpd_boot
@@ -27295,7 +26263,7 @@ doProftpd() {
 	doSslConfigurationFtp
 
 	if [ ! -e /etc/logrotate.d/proftpd ] && [ ${OS} != "FreeBSD" ]; then
-		curl ${CURL_CONNECT_OPTIONS} ${WEBPATH}/proftpd.logrotate -o /etc/logrotate.d/proftpd
+		wget ${WGET_CONNECT_OPTIONS} ${WEBPATH}/proftpd.logrotate -O /etc/logrotate.d/proftpd
 	fi
 
 	if ! ${EXEC_CL_COMMANDS_ONCE}; then
@@ -27396,10 +26364,7 @@ doPureftpd() {
 		do_exit 1 "You cannot install Pure-FTPd, because you do not have it set in options.conf file."
 	fi
 
-	doFtpCleanup
-
 	addUserGroup ftp ftp
-	addToAccess ftp
 
 	getFile pure-ftpd-${PUREFTPD_VER}.tar.gz pureftpd
 	getFile pure-ftpd pure-ftpd_boot
@@ -27674,7 +26639,7 @@ doPureftpd() {
 	pure-pw mkdb /etc/pureftpd.pdb -f /etc/proftpd.passwd
 
 	if [ ! -e /etc/logrotate.d/pure-ftpd ] && [ ${OS} != "FreeBSD" ]; then
-		curl ${CURL_CONNECT_OPTIONS} ${WEBPATH}/pure-ftpd.logrotate -o /etc/logrotate.d/pure-ftpd
+		wget ${WGET_CONNECT_OPTIONS} ${WEBPATH}/pure-ftpd.logrotate -O /etc/logrotate.d/pure-ftpd
 	fi
 
 	if ! ${EXEC_CL_COMMANDS_ONCE}; then
@@ -27785,7 +26750,6 @@ doRemovePureftpd() {
 doNoFtpd() {
 	echo "No ftpd server set.  Adding basic ftp:ftp account setup."
 	addUserGroup ftp ftp
-	addToAccess ftp
 }
 
 ####################################################
@@ -28103,7 +27067,7 @@ checkSecurity() {
 					echo "https://forum.directadmin.com/showthread.php?t=55502"
 					echo ""
 				else
-					curl ${CURL_CONNECT_OPTIONS} -o /etc/exim.pl.cb20 ${DOWNLOADSERVER_SCHEME}://${DOWNLOADSERVER_OPT}/services/exim.pl.${EXIM_PL_VER}			
+					wget ${WGET_CONNECT_OPTIONS} -O /etc/exim.pl.cb20 ${DOWNLOADSERVER_SCHEME}://${DOWNLOADSERVER_OPT}/services/exim.pl.${EXIM_PL_VER}			
 					if [ -s /etc/exim.pl.cb20 ]; then
 						EPL_BACK=/etc/exim.pl.${EPL_VER}.55502.backup
 						if [ ! -s ${EPL_BACK} ]; then
@@ -28343,45 +27307,36 @@ doVersions() {
 
 	if [ $(is_os_eol) -eq 0 ] && [ -e ${DA_BIN} ] && [ "${DIRECTADMIN_VER}" != "0" ]; then
 		DOWNGRADE_CASE=false
-		UPDATE_DATA=`curl -s -k -L $(/usr/local/directadmin/directadmin --root-auth-url)/CMD_API_LICENSE?json=yes 2>/dev/null | perl -ne 'print if /"(update_available|latest_commit_sha|commit_sha|version|current_version)":[^,]*/'`
-		
-		if [ ! -z "${UPDATE_DATA}" ]; then
-			DIRECTADMIN_UPDATE_AVAIL="`echo "${UPDATE_DATA}" | grep -o '"update_available"[^,]*' | cut -d'"' -f4`"
-			DIRECTADMIN_UPDATE_LATEST_SHA="`echo "${UPDATE_DATA}" | grep -o '"latest_commit_sha"[^,]*' | cut -d'"' -f4`"
-			DIRECTADMIN_UPDATE_SHA="`echo "${UPDATE_DATA}" | grep -o '"commit_sha"[^,]*' | cut -d'"' -f4`"
-			DIRECTADMIN_UPDATE_VER="`echo "${UPDATE_DATA}" | grep -o '"version"[^,]*' | cut -d'"' -f4`"
-			DIRECTADMIN_UPDATE_CURRENT_VER="`echo "${UPDATE_DATA}" | grep -o '"current_version"[^,]*' | cut -d'"' -f4`"
-		else
-			DIRECTADMIN_UPDATE_AVAIL="0"
-			DIRECTADMIN_UPDATE_LATEST_SHA="0"
-			DIRECTADMIN_UPDATE_SHA="0"
-			DIRECTADMIN_UPDATE_VER="0"
-			DIRECTADMIN_UPDATE_CURRENT_VER="0"
+		DIRECTADMINV="`${DA_BIN} v | grep -m1 '^Version:' | grep -oE '[^ ]+$' | cut -d. -f2,3,4`"
+		if [ "`version_cmp ${DIRECTADMIN_VER} $DIRECTADMINV`" -lt 0 ]; then
+			DOWNGRADE_CASE=true
 		fi
 
-		if [ -z "${DIRECTADMIN_UPDATE_LATEST_SHA}" ]; then
-			DIRECTADMIN_UPDATE_LATEST_SHA="0"
-		fi
-		if [ "${VERSIONS}" = "1" ]; then
-			echo "Latest version of DirectAdmin: ${DIRECTADMIN_UPDATE_VER} build ${DIRECTADMIN_UPDATE_LATEST_SHA}"
-			echo "Installed version of DirectAdmin: ${DIRECTADMIN_UPDATE_CURRENT_VER} build ${DIRECTADMIN_UPDATE_SHA}"
-			echo ""
-		fi
-		if [ "${DIRECTADMIN_UPDATE_AVAIL}" = "1" ]; then
-			if [ "${VERSIONS}" = "0" ] || [ "${VERSIONS}" = "3" ]; then
-				doUpdateDA
-			elif [ "${VERSIONS}" = "1" ]; then
-				echo "${boldon}DirectAdmin ${DIRECTADMIN_UPDATE_VER} build ${DIRECTADMIN_UPDATE_SHA} to ${DIRECTADMIN_UPDATE_CURRENT_VER} build ${DIRECTADMIN_UPDATE_LATEST_SHA} update is available.${boldoff}"
+		if ! ${DOWNGRADE_CASE}; then
+			if [ "${VERSIONS}" = "1" ]; then
+				echo "Latest version of DirectAdmin: ${DIRECTADMIN_VER}"
+				echo "Installed version of DirectAdmin: ${DIRECTADMINV}"
 				echo ""
-			elif [ "${VERSIONS}" = "json" ]; then
-				printf "\t\"update_da\": {\n"
-				printf "\t\t\"name\": \"DirectAdmin\",\n"
-				printf "\t\t\"current\": \"${DIRECTADMIN_UPDATE_VER} build ${DIRECTADMIN_UPDATE_SHA}\",\n"
-				printf "\t\t\"offered\": \"${DIRECTADMIN_UPDATE_CURRENT_VER} build ${DIRECTADMIN_UPDATE_LATEST_SHA}\"\n"
-				printf "\t},\n"
 			fi
-			EXIT_CODE=$((EXIT_CODE+1))
+			if [ "${DIRECTADMIN_VER}" != "${DIRECTADMINV}" ]; then
+				if [ "${VERSIONS}" = "0" ] || [ "${VERSIONS}" = "3" ]; then
+					doUpdateDA
+				elif [ "${VERSIONS}" = "1" ]; then
+					echo "${boldon}DirectAdmin ${DIRECTADMINV} to ${DIRECTADMIN_VER} update is available.${boldoff}"
+					echo ""
+				elif [ "${VERSIONS}" = "json" ]; then
+					printf "\t\"update_da\": {\n"
+					printf "\t\t\"name\": \"DirectAdmin\",\n"
+					printf "\t\t\"current\": \"${DIRECTADMINV}\",\n"
+					printf "\t\t\"offered\": \"${DIRECTADMIN_VER}\"\n"
+					printf "\t},\n"
+				fi
+				EXIT_CODE=$((EXIT_CODE+1))
+			fi
 		fi
+	elif [ $(is_os_eol) -eq 1 ] && [ "${DIRECTADMIN_VER}" != "0" ]; then
+		echo "${boldon}Unable to find any updates for DirectAdmin, because OS used is EOL.${boldoff}"
+		echo ""
 	fi
 
 	LETSENCRYPT=`getDA_Opt letsencrypt 1`
@@ -29074,56 +28029,6 @@ doVersions() {
 					EXIT_CODE=$((EXIT_CODE+1))
 				fi
 			fi
-		fi
-	fi
-
-	if [ -x /usr/local/bin/wp ]; then
-		WPV="`/usr/local/bin/wp --version --allow-root | cut -d" " -f2`"
-		if [ "${VERSIONS}" = "1" ]; then
-			echo "Latest version of WP-CLI: ${WP_VER}"
-			echo "Installed version of WP-CLI: ${WPV}"
-			echo ""
-		fi
-		if [ "${WP_VER}" != "${WPV}" ]; then
-			if [ "${VERSIONS}" = "0" ]; then
-				echo "${boldon}Updating WP-CLI${boldoff}"
-				doWP
-			elif [ "${VERSIONS}" = "1" ]; then
-				echo "${boldon}WP-CLI ${WPV} to ${WP_VER} update is available.${boldoff}"
-				echo ""
-			elif [ "${VERSIONS}" = "json" ]; then
-				printf "\t\"wp\": {\n"
-				printf "\t\t\"name\": \"wp-cli\",\n"
-				printf "\t\t\"current\": \"${WPV}\",\n"
-				printf "\t\t\"offered\": \"${WP_VER}\"\n"
-				printf "\t},\n"
-			fi
-			EXIT_CODE=$((EXIT_CODE+1))
-		fi
-	fi
-
-	if [ -x /usr/local/bin/imapsync ]; then
-		IMAPSYNCV="`/usr/local/bin/imapsync --version`"
-		if [ "${VERSIONS}" = "1" ]; then
-			echo "Latest version of Imapsync: ${IMAPSYNC_VER}"
-			echo "Installed version of Imapsync: ${IMAPSYNCV}"
-			echo ""
-		fi
-		if [ "${IMAPSYNC_VER}" != "${IMAPSYNCV}" ]; then
-			if [ "${VERSIONS}" = "0" ]; then
-				echo "${boldon}Updating Imapsync${boldoff}"
-				doImapsync
-			elif [ "${VERSIONS}" = "1" ]; then
-				echo "${boldon}Imapsync ${IMAPSYNCV} to ${IMAPSYNC_VER} update is available.${boldoff}"
-				echo ""
-			elif [ "${VERSIONS}" = "json" ]; then
-				printf "\t\"imapsync\": {\n"
-				printf "\t\t\"name\": \"Imapsync\",\n"
-				printf "\t\t\"current\": \"${IMAPSYNCV}\",\n"
-				printf "\t\t\"offered\": \"${IMAPSYNC_VER}\"\n"
-				printf "\t},\n"
-			fi
-			EXIT_CODE=$((EXIT_CODE+1))
 		fi
 	fi
 
@@ -30273,15 +29178,7 @@ doVersions() {
 					echo "Installed version of PHP ${php_release}: ${PHPV}"
 					echo ""
 				fi
-				FPM_SECURITY_PATCH=false
-				if [ "${HAVE_FPM_CGI}" = "yes" ]; then
-					if [ "${php_release}" = "5.6" ] || [ "${php_release}" = "7.0" ] || [ "${php_release}" = "7.1" ] || [ "${php_release}" = "7.2" ]; then
-						if ! /usr/local/php${php_shortrelease}/bin/php${php_shortrelease} -i 2>&1 | grep -m1 -q 'PHP-FPM security patch'; then
-							FPM_SECURITY_PATCH=true
-						fi
-					fi
-				fi
-				if [ "${PHP_VER}" != "${PHPV}" ] || ${FPM_SECURITY_PATCH}; then
+				if [ "${PHP_VER}" != "${PHPV}" ]; then
 					if [ "${HAVE_SUPHP_CGI}" = "yes" ]; then
 						BUILD_PHP_COMMAND="php_expert ${php_release} suphp"
 					elif [ "${HAVE_FPM_CGI}" = "yes" ]; then
@@ -30380,7 +29277,7 @@ doVersions() {
 		if [ -x /usr/sbin/unitd ]; then
 			UNITV="`/usr/sbin/unitd --version 2>&1 | grep '^unit version:' | awk '{print $3}'`"
 			if [ "${VERSIONS}" = "1" ]; then
-				echo "Installed version of Nginx Unit: ${UNITV}"
+				echo "Installed version of AWstats: ${UNITV}"
 				echo ""
 			fi
 		fi
@@ -30434,37 +29331,6 @@ doVersions() {
 				fi
 				EXIT_CODE=$((EXIT_CODE+1))
 			fi
-		fi
-	fi
-
-	if [ "${PHP_IGBINARY_OPT}" = "yes" ] && [ "${IGBINARY_VER}" != "0" ] && [ -x /usr/local/bin/php ]; then
-		if [ "${VERSIONS}" = "1" ]; then
-			echo "Latest version of igbinary: ${IGBINARY_VER}"
-		fi
-		IGBIANRYV=0
-		if /usr/local/bin/php -i | grep -m1 'igbinary version' | tail -n1 | grep -m1 -q -o '[0-9.]*' 2>/dev/null; then
-			IGBINARYV="`/usr/local/bin/php -i | grep -m1 'igbinary version' | tail -n1 | grep -m1 -o '[0-9.]*' 2>/dev/null`"
-			if [ "${VERSIONS}" = "1" ]; then
-				echo "Installed version of igbinary: ${IGBINARYV}"
-				echo ""
-			fi
-		fi
-		if [ "${IGBINARY_VER}" != "${IGBINARYV}" ]; then
-			if [ "${VERSIONS}" = "0" ] || [ "${VERSIONS}" = "2" ]; then
-				echo "${boldon}Updating igbinary.${boldoff}"
-				doIgbinary
-				WEBAPPS_UPDATED=true
-			elif [ "${VERSIONS}" = "1" ]; then
-				echo "${boldon}Igbinary ${IGBINARYV} to ${IGBINARY_VER} update is available.${boldoff}"
-				echo ""
-			elif [ "${VERSIONS}" = "json" ]; then
-				printf "\t\"php_igbinary\": {\n"
-				printf "\t\t\"name\": \"Igbinary\",\n"
-				printf "\t\t\"current\": \"${IGBINARYV}\",\n"
-				printf "\t\t\"offered\": \"${IGBINARY_VER}\"\n"
-				printf "\t},\n"
-			fi
-			EXIT_CODE=$((EXIT_CODE+1))
 		fi
 	fi
 
@@ -30662,16 +29528,42 @@ LARGE_TEST_MAX=35
 SPEED_VERBOSE=1
 BEST=0
 BEST_SEVER=""
+KB=1024
+MB=1048576
+GB=1073741824
+
+speedtest() {
+	export LC_ALL=C
+	wget -O /dev/null --timeout=2 --tries=1 http://${1}/services/${2} 2>&1 | grep saved | cut -d\( -f2 | cut -d\) -f1
+}
 
 test_server() {
 	i=$1
-	VALUE=`curl -o /dev/null -w "%{speed_download}" --silent --connect-timeout 2 http://${1}/services/${2} 2>&1`
+	VALUE=0
+	SPEED=`speedtest $i $2`
 
 	#can be MB/s or KB/s or B/s
-	if [ "${VALUE}" = "" ]; then
+
+	if [ "${SPEED}" = "" ]; then
 		echo "$i is too slow, skipping."
 		continue
 	fi
+
+	NUM=`echo $SPEED | cut -d\  -f1`
+	TYPE=`echo $SPEED | cut -d\  -f2`
+
+	case "$TYPE" in
+		B/s)    VALUE=$NUM
+			;;
+		KB/s)   VALUE=`perl -e "print $KB * $NUM"`
+			;;
+		MB/s)   VALUE=`perl -e "print $MB * $NUM"`
+			;;
+		GB/s)   VALUE=`perl -e "print $GB * $NUM"`
+			;;
+		*)      echo "Unknown speed type $TYPE"
+			;;
+	esac
 
 	#chop off any decimal bytes.. we dont care about 0.5 byte/second
 	VALUE=`echo $VALUE | cut -d. -f1`
@@ -31055,21 +29947,6 @@ doAll() {
 		fi
 	fi
 
-	if ${NEW_INSTALL}; then
-		#We need to have /etc/virtual ready for new installs of DA
-		createEtcVirtual
-
-		doSysbk
-
-		doBind
-
-		if [ "${OS}" != "FreeBSD" ] && [ "${CSF_OPT}" = "yes" ]; then
-			doCSF
-		fi
-	fi
-
-	doMajordomo
-
 	if [ ! -e /usr/include/pcre.h ] && [ ! -e /usr/local/include/pcre.h ]; then
 		if [ -e /etc/debian_version ]; then
 			apt-get -y install libpcre3-dev 
@@ -31141,19 +30018,7 @@ doAll() {
 #	fi
 
 	if [ "${SYSTEMD}" = "yes" ] && [ "${CLOUDLINUX_OPT}" != "yes" ]; then
-		SKIP_BRWAP=false
-		if systemd-detect-virt | grep -m1 -q -E 'lxc|openvz'; then
-			if [ -e /dev/.lxc/proc/self/uid_map ]; then
-				if ! cat /dev/.lxc/proc/self/uid_map >/dev/null 2>&1; then
-					SKIP_BRWAP=false
-				else
-					SKIP_BRWAP=true
-				fi
-			else
-				SKIP_BRWAP=true
-			fi
-		fi
-		if ! ${SKIP_BRWAP}; then
+		if ! systemd-detect-virt | grep -m1 -q -E 'lxc|openvz'; then
 			doBubblewrap
 		fi
 	fi
@@ -31282,11 +30147,6 @@ doAll() {
 	fi
 
 	doLetsEncrypt
-	if [ -s /usr/local/directadmin/scripts/letsencrypt.sh ] && [ -x ${DA_BIN} ]; then
-		if ${DA_BIN} c | grep '^ssl=0' && ${DA_BIN} c | grep '^ssl_port=0'; then
-			/usr/local/directadmin/scripts/letsencrypt.sh request `hostname` >/dev/null 2>&1
-		fi
-	fi
 
 	if [ "${CRON_OPT}" = "yes" ]; then
 		doCron
@@ -31317,10 +30177,6 @@ doAll() {
 	echo "*************************************"
 	echo ""
 	doGrubConf
-	if ${NEW_INSTALL}; then
-		echo "action=notify&value=admin&subject=CustomBuild installation has finished&message=CustomBuild installation has finished, to check the full log please check:%0A/usr/local/directadmin/custombuild/install.txt" >> ${TASK_QUEUE}
-		run_dataskq
-	fi
 }
 
 ####################################################
@@ -31340,6 +30196,8 @@ case "$1" in
 		;;
 	options_nobold) BOLD_OPT=no; boldon=""; boldoff=""; doChecks; options
 		;;
+	os_license_mismatch) os_license_mismatch
+		;;
 	create_options) create_options
 		;;
 	used_configs) used_configs
@@ -31349,14 +30207,6 @@ case "$1" in
 	nghttp2) doNghttp2
 		;;
 	apache) doChecks; doApache2
-		;;
-	majordomo) doMajordomo
-		;;
-	bind) doBind
-		;;
-	csf) doCSF
-		;;
-	sysbk) doSysbk
 		;;
     letsencrypt) doLetsEncrypt
         ;;
@@ -31452,8 +30302,6 @@ case "$1" in
 	suhosin|php_suhosin) doSuhosin
 		;;
 	php_snuffleupagus) doSnuffleupagus
-		;;
-	php_igbinary) doIgbinary
 		;;
 	opcache|php_opcache) doOpcache
 		;;
@@ -31607,10 +30455,6 @@ case "$1" in
 	csfpingore) doCSFpignore
 		;;
 	composer) doComposer
-		;;
-	wp) doWP
-		;;
-	imapsync) doImapsync
 		;;
 	lego) doLego
 		;;
